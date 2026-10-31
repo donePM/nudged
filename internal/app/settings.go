@@ -138,8 +138,8 @@ func saveSettings(srv *daemon.Server, cfg config.Config) error {
 	if cfg.TimeoutMinutes <= 0 {
 		return errors.New("timeout must be more than 0 minutes")
 	}
-	if cfg.TimeoutMinutes > 1440 {
-		return errors.New("timeout must be 1440 minutes (24 h) or less")
+	if cfg.TimeoutMinutes > config.MaxTimeoutMinutes {
+		return fmt.Errorf("timeout must be %d minutes or less", config.MaxTimeoutMinutes)
 	}
 	e := cfg.Events
 	for name, ev := range map[string]config.Event{"permission": e.Permission, "question": e.Question, "done": e.Done, "waits": e.Waits} {

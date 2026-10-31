@@ -25,6 +25,9 @@ type Events struct {
 	Waits      Event `toml:"waits"`
 }
 
+// MaxTimeoutMinutes matches installer.Timeout (1800 s): Claude Code ends the hook then.
+const MaxTimeoutMinutes = 30
+
 type Config struct {
 	Mode           string `toml:"mode"` // "answer" or "notify"
 	TimeoutMinutes int    `toml:"timeout_minutes"`
@@ -74,6 +77,7 @@ func Load() (Config, error) {
 	if cfg.Mode != "answer" && cfg.Mode != "notify" {
 		return Default(), fmt.Errorf("%s: mode %q is not \"answer\" or \"notify\"", path, cfg.Mode)
 	}
+	cfg.TimeoutMinutes = min(cfg.TimeoutMinutes, MaxTimeoutMinutes) // in memory only, the file keeps the hand edit
 	return cfg, nil
 }
 

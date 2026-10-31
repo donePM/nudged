@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -147,5 +148,23 @@ func TestLoadErrorKeepsFile(t *testing.T) {
 				t.Fatalf("file changed to %q", got)
 			}
 		})
+	}
+}
+
+func TestLoadClampsTimeout(t *testing.T) {
+	path := setHome(t)
+	for in, want := range map[int]int{1440: 30, 31: 30, 30: 30, 5: 5} {
+		content := fmt.Sprintf("timeout_minutes = %d\n", in)
+		writeFile(t, path, content)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.TimeoutMinutes != want {
+			t.Errorf("timeout_minutes = %d loads as %d, want %d", in, cfg.TimeoutMinutes, want)
+		}
+		if b, _ := os.ReadFile(path); string(b) != content {
+			t.Errorf("Load changed the file to %q", b)
+		}
 	}
 }

@@ -93,7 +93,7 @@ nudged creates the file with the defaults on first use and keeps your hand edits
 
 ```toml
 mode = "answer"        # "answer" (answer in the panel) or "notify" (a click jumps to the terminal)
-timeout_minutes = 30   # minutes until a held request ends and Claude Code asks in the terminal
+timeout_minutes = 30   # 1 to 30 minutes until a held request ends and Claude Code asks in the terminal
 start_at_login = true  # start nudged at login with a LaunchAgent
 
 [events.permission]    # permission requests

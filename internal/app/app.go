@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"net/http"
 	"os"
 	"time"
 
+	"github.com/rokde/nudged/frontend"
 	"github.com/rokde/nudged/internal/config"
 	"github.com/rokde/nudged/internal/daemon"
 	"github.com/rokde/nudged/internal/proto"
@@ -54,6 +57,15 @@ func startDaemon(socket string) (*daemon.Server, <-chan error, error) {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve() }()
 	return srv, errc, nil
+}
+
+// assets serves the Vite output in frontend/dist/app. Without a build, it serves the placeholder frontend/dist/index.html.
+func assets() http.Handler {
+	root, _ := fs.Sub(frontend.Dist, "dist")
+	if _, err := fs.Stat(root, "app/index.html"); err == nil {
+		root, _ = fs.Sub(root, "app")
+	}
+	return application.AssetFileServerFS(root)
 }
 
 // toggle flips the pause flag. It returns the new tray icon and the new label of the Pause item.
@@ -105,6 +117,7 @@ func run(socket string) int {
 	app := application.New(application.Options{
 		Name:       "nudged",
 		Mac:        application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},
+		Assets:     application.AssetOptions{Handler: assets()},
 		OnShutdown: func() { srv.Close() },
 	})
 	tray := app.SystemTray.New()

@@ -5,8 +5,9 @@ VERSION := $(shell git describe --tags --always --dirty)
 test:
 	go test ./...
 
-# shortcut: no frontend yet, S12 adds the frontend build before go build
 build:
+	[ -d frontend/node_modules ] || npm --prefix frontend ci
+	npm --prefix frontend run build
 	go build -ldflags "-X main.version=$(VERSION)" -o bin/nudged .
 
 run: build

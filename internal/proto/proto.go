@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const SocketMode = 0o600
@@ -24,12 +25,28 @@ const Hook = "hook"
 // Statusline is the Request.Kind of a message from `nudged statusline`. Its Payload is one StatuslineInfo.
 const Statusline = "statusline"
 
+// Status is the Request.Kind of a session query. The Reply.Output is a JSON array of Session.
+const Status = "status"
+
 type StatuslineInfo struct {
 	SessionID  string `json:"session_id"`
 	Cwd        string `json:"cwd,omitempty"`
 	Model      string `json:"model,omitempty"`
 	Effort     string `json:"effort,omitempty"`
 	ContextPct int    `json:"context_pct"`
+}
+
+type Session struct {
+	ID           string    `json:"session_id"`
+	Project      string    `json:"project"`
+	Path         string    `json:"path"`
+	Status       string    `json:"status"`
+	Term         string    `json:"term"`
+	TTY          string    `json:"tty"`
+	Model        string    `json:"model"`
+	Effort       string    `json:"effort"`
+	ContextPct   int       `json:"context_pct"`
+	LastActivity time.Time `json:"last_activity"`
 }
 
 type Request struct {

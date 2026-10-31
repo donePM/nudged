@@ -27,7 +27,10 @@ func TestOpenSettingsOneWindow(t *testing.T) {
 		made = append(made, w)
 		return w
 	}
-	t.Cleanup(func() { newSettingsWindow, settingsWin = old, nil })
+	oldEmit := emitSettings
+	emitSettings = func(*application.App, string, any) {}
+	t.Cleanup(func() { newSettingsWindow, settingsWin, emitSettings = old, nil, oldEmit })
+	sockPath(t)
 
 	openSettings(nil, nil)
 	openSettings(nil, nil)
@@ -78,10 +81,11 @@ func TestDecodeConfigKeepsFields(t *testing.T) {
 
 func TestSaveSettingsRejects(t *testing.T) {
 	cases := map[string]func(*config.Config){
-		"mode":      func(c *config.Config) { c.Mode = "loud" },
-		"timeout 0": func(c *config.Config) { c.TimeoutMinutes = 0 },
-		"timeout-1": func(c *config.Config) { c.TimeoutMinutes = -1 },
-		"hide":      func(c *config.Config) { c.Events.Waits.HideSeconds = -1 },
+		"mode":         func(c *config.Config) { c.Mode = "loud" },
+		"timeout 0":    func(c *config.Config) { c.TimeoutMinutes = 0 },
+		"timeout-1":    func(c *config.Config) { c.TimeoutMinutes = -1 },
+		"timeout 1441": func(c *config.Config) { c.TimeoutMinutes = 1441 },
+		"hide":         func(c *config.Config) { c.Events.Waits.HideSeconds = -1 },
 	}
 	for name, change := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -93,8 +97,12 @@ func TestSaveSettingsRejects(t *testing.T) {
 			before, _ := os.ReadFile(path)
 			cfg := config.Default()
 			change(&cfg)
-			if err := saveSettings(srv, cfg); err == nil {
+			err := saveSettings(srv, cfg)
+			if err == nil {
 				t.Fatal("no error")
+			}
+			if name == "timeout 1441" && !strings.Contains(err.Error(), "1440") {
+				t.Fatalf("error %q", err)
 			}
 			after, _ := os.ReadFile(path)
 			if string(after) != string(before) {
@@ -234,6 +242,58 @@ func TestLoadSettingsStartAtLogin(t *testing.T) {
 		}
 		if got.StartAtLogin != on || got.StartAtLogin != loginitem.Enabled() {
 			t.Errorf("StartAtLogin %v, want %v", got.StartAtLogin, on)
+		}
+	}
+}
+
+func TestSaveSettingsMaxTimeout(t *testing.T) {
+	srv := testServer(t)
+	cfg := config.Default()
+	cfg.TimeoutMinutes = 1440
+	if err := saveSettings(srv, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if srv.HoldTimeout != 24*time.Hour {
+		t.Fatalf("hold timeout %v", srv.HoldTimeout)
+	}
+}
+
+func TestOpenSettingsReloadsConfig(t *testing.T) {
+	sockPath(t)
+	oldNew, oldEmit := newSettingsWindow, emitSettings
+	newSettingsWindow = func(*application.App, *daemon.Server) settingsWindow { return &fakeWindow{} }
+	var got []int
+	emitSettings = func(_ *application.App, name string, data any) {
+		if name == "settings:config" {
+			got = append(got, data.(config.Config).TimeoutMinutes)
+		}
+	}
+	t.Cleanup(func() { newSettingsWindow, settingsWin, emitSettings = oldNew, nil, oldEmit })
+
+	cfg := config.Default()
+	cfg.TimeoutMinutes = 5
+	if err := config.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	openSettings(nil, nil)
+	cfg.TimeoutMinutes = 9
+	if err := config.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	openSettings(nil, nil)
+	if !slices.Equal(got, []int{5, 9}) {
+		t.Fatalf("emitted %v, want [5 9]", got)
+	}
+}
+
+func TestSettingsViewSource(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "frontend", "src", "views", "Settings.vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"`Test ${r.label} sound`", `max="1440"`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("Settings.vue lacks %s", want)
 		}
 	}
 }

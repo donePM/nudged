@@ -52,12 +52,20 @@ var (
 	settingsWin settingsWindow
 )
 
-// openSettings creates the settings window on the first call. Later calls show and focus the same window.
+// emitSettings sends an event to the settings view. Tests replace it.
+var emitSettings = func(app *application.App, name string, data any) { app.Event.Emit(name, data) }
+
+// openSettings creates the settings window on the first call. Every call reloads config.toml into the view, then shows and focuses the window.
 func openSettings(app *application.App, srv *daemon.Server) {
 	settingsMu.Lock()
 	defer settingsMu.Unlock()
 	if settingsWin == nil {
 		settingsWin = newSettingsWindow(app, srv)
+	}
+	cfg, err := loadSettings()
+	emitSettings(app, "settings:config", cfg)
+	if err != nil {
+		emitSettings(app, "settings:error", err.Error())
 	}
 	settingsWin.show()
 }
@@ -129,6 +137,9 @@ func saveSettings(srv *daemon.Server, cfg config.Config) error {
 	}
 	if cfg.TimeoutMinutes <= 0 {
 		return errors.New("timeout must be more than 0 minutes")
+	}
+	if cfg.TimeoutMinutes > 1440 {
+		return errors.New("timeout must be 1440 minutes (24 h) or less")
 	}
 	e := cfg.Events
 	for name, ev := range map[string]config.Event{"permission": e.Permission, "question": e.Question, "done": e.Done, "waits": e.Waits} {

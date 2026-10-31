@@ -56,7 +56,7 @@ function save() {
       </select>
     </label>
     <label>Timeout (minutes)
-      <input v-model.number="cfg.TimeoutMinutes" type="number" min="1" required>
+      <input v-model.number="cfg.TimeoutMinutes" type="number" min="1" max="1440" required>
     </label>
     <label>Start at login
       <input v-model="cfg.StartAtLogin" type="checkbox">
@@ -70,7 +70,7 @@ function save() {
           <td>{{ r.label }}</td>
           <td><input v-model="cfg.Events[r.field].Show" type="checkbox" :aria-label="`Show ${r.label}`"></td>
           <td><input v-model="cfg.Events[r.field].Sound" type="checkbox" :aria-label="`Sound ${r.label}`"></td>
-          <td><button type="button" @click="Events.Emit('settings:sound', r.key)">Test</button></td>
+          <td><button type="button" :aria-label="`Test ${r.label} sound`" @click="Events.Emit('settings:sound', r.key)">Test</button></td>
           <td>
             <input v-model.number="cfg.Events[r.field].HideSeconds" type="number" min="0" required
               :aria-label="`Hide ${r.label} after seconds`">

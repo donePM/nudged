@@ -7,10 +7,12 @@ import (
 	"errors"
 	"io"
 	"net"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/donepm/nudged/internal/config"
 	"github.com/donepm/nudged/internal/proto"
 )
 
@@ -204,4 +206,20 @@ func output(v any) proto.Reply {
 		return proto.Reply{Error: err.Error()}
 	}
 	return proto.Reply{OK: true, Output: out}
+}
+
+// Start listens on socket and applies the config hold timeout. A config error goes to stderr with prefix.
+func Start(socket, prefix string) (*Server, config.Config, error) {
+	srv, err := Listen(socket, NewRegistry())
+	if err != nil {
+		return nil, config.Config{}, err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, prefix, err)
+	}
+	if cfg.TimeoutMinutes > 0 {
+		srv.HoldTimeout = time.Duration(cfg.TimeoutMinutes) * time.Minute
+	}
+	return srv, cfg, nil
 }

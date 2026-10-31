@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/donepm/nudged/frontend"
 	"github.com/donepm/nudged/internal/config"
@@ -40,16 +39,9 @@ var logw io.Writer = os.Stderr
 
 // startDaemon listens on socket and serves in the background. It returns the loaded config. The channel gets the error of Serve.
 func startDaemon(socket string) (*daemon.Server, config.Config, <-chan error, error) {
-	srv, err := daemon.Listen(socket, daemon.NewRegistry())
+	srv, cfg, err := daemon.Start(socket, "nudged:")
 	if err != nil {
 		return nil, config.Config{}, nil, err
-	}
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "nudged:", err)
-	}
-	if cfg.TimeoutMinutes > 0 {
-		srv.HoldTimeout = time.Duration(cfg.TimeoutMinutes) * time.Minute
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve() }()

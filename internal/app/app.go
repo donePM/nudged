@@ -141,6 +141,7 @@ func run(socket string) int {
 	setupSessions(app, tray, srv)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		startPanel(app, srv, cfg)
+		startQuestion(app, srv)
 		application.InvokeSync(func() { setupHotkey(pause) })
 	})
 	go func() {

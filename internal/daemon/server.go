@@ -87,6 +87,11 @@ func (s *Server) Answer(id string, payload json.RawMessage) error {
 	return s.queue.answer(id, payload)
 }
 
+// Pending returns the held requests, oldest first.
+func (s *Server) Pending() []proto.PendingRequest {
+	return s.queue.pending()
+}
+
 // Paused reports the pause flag.
 func (s *Server) Paused() bool {
 	s.queue.mu.Lock()

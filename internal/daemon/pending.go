@@ -33,6 +33,8 @@ type queue struct {
 	next   int
 	list   []*held
 	paused bool
+	// changes gets a snapshot after each change. Nil means no snapshots.
+	changes chan []proto.PendingRequest
 }
 
 // add queues p with a new id. It returns nil while paused.
@@ -46,6 +48,7 @@ func (q *queue) add(p proto.PendingRequest) *held {
 	p.ID, p.Started = strconv.Itoa(q.next), time.Now()
 	h := &held{PendingRequest: p, done: make(chan proto.Reply, 1)}
 	q.list = append(q.list, h)
+	q.publishLocked()
 	return h
 }
 
@@ -63,6 +66,20 @@ func (q *queue) endLocked(h *held, rep proto.Reply) {
 	}
 	q.list = slices.Delete(q.list, i, i+1)
 	h.done <- rep
+	q.publishLocked()
+}
+
+// publishLocked sends a snapshot and never blocks: it replaces an unread snapshot with the new one.
+func (q *queue) publishLocked() {
+	if q.changes == nil {
+		return
+	}
+	select {
+	case <-q.changes:
+	default:
+	}
+	// q.mu makes this the only sender, so the buffer has space now.
+	q.changes <- q.pendingLocked()
 }
 
 func (q *queue) answer(id string, payload json.RawMessage) error {
@@ -104,6 +121,10 @@ func (q *queue) setPaused(paused bool) {
 func (q *queue) pending() []proto.PendingRequest {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.pendingLocked()
+}
+
+func (q *queue) pendingLocked() []proto.PendingRequest {
 	list := make([]proto.PendingRequest, len(q.list))
 	for i, h := range q.list {
 		list[i] = h.PendingRequest

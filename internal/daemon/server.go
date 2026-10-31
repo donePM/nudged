@@ -49,7 +49,7 @@ func Listen(path string, reg *Registry) (*Server, error) {
 		ln.Close()
 		return nil, err
 	}
-	return &Server{Registry: reg, ln: ln}, nil
+	return &Server{Registry: reg, ln: ln, queue: queue{changes: make(chan []proto.PendingRequest, 1)}}, nil
 }
 
 // Serve accepts connections until Close. It returns nil after Close.
@@ -75,6 +75,16 @@ func (s *Server) Close() error {
 // SetPaused sets the pause flag. Pause ends all held requests, and while paused the server holds no new request.
 func (s *Server) SetPaused(paused bool) {
 	s.queue.setPaused(paused)
+}
+
+// Changes gets a snapshot of the pending requests, oldest first, after each add and each end. An unread snapshot is replaced by the newest one.
+func (s *Server) Changes() <-chan []proto.PendingRequest {
+	return s.queue.changes
+}
+
+// Answer ends the held request id and sends payload verbatim as the hook output. It is the same path as `nudged answer`.
+func (s *Server) Answer(id string, payload json.RawMessage) error {
+	return s.queue.answer(id, payload)
 }
 
 // Paused reports the pause flag.

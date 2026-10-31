@@ -38,11 +38,11 @@ var registerHotkey = func(onPress func()) error { return errors.New("hotkey not 
 
 var logw io.Writer = os.Stderr
 
-// startDaemon listens on socket and serves in the background. The channel gets the error of Serve.
-func startDaemon(socket string) (*daemon.Server, <-chan error, error) {
+// startDaemon listens on socket and serves in the background. It returns the loaded config. The channel gets the error of Serve.
+func startDaemon(socket string) (*daemon.Server, config.Config, <-chan error, error) {
 	srv, err := daemon.Listen(socket, daemon.NewRegistry())
 	if err != nil {
-		return nil, nil, err
+		return nil, config.Config{}, nil, err
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -53,7 +53,7 @@ func startDaemon(socket string) (*daemon.Server, <-chan error, error) {
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve() }()
-	return srv, errc, nil
+	return srv, cfg, errc, nil
 }
 
 // assets serves the Vite output in frontend/dist/app. Without a build, it serves the placeholder frontend/dist/index.html.
@@ -106,7 +106,7 @@ func Run() int {
 }
 
 func run(socket string) int {
-	srv, errc, err := startDaemon(socket)
+	srv, cfg, errc, err := startDaemon(socket)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nudged:", err)
 		return 1
@@ -140,6 +140,7 @@ func run(socket string) int {
 	tray.SetMenu(menu)
 	setupSessions(app, tray, srv)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		startPanel(app, srv, cfg)
 		application.InvokeSync(func() { setupHotkey(pause) })
 	})
 	go func() {

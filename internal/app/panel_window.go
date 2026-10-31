@@ -25,6 +25,8 @@ type panelShow struct {
 	Permission *permissionData `json:"permission,omitempty"`
 	// Notice is set when Request.Kind is a notice kind.
 	Notice *noticeData `json:"notice,omitempty"`
+	// Generic is set when the Generic view shows Request.
+	Generic *genericData `json:"generic,omitempty"`
 }
 
 type panelAnswer struct {
@@ -180,6 +182,10 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 		var s *panelShow
 		if req, others, ok := top(list, cfg); ok {
 			s = &panelShow{Request: req, Others: others, Mode: cfg.Mode}
+			if panelView(s) == "Generic" {
+				g := genericPanel(req)
+				s.Generic = &g
+			}
 			if ev, _ := event(req.Kind, cfg); notice(req.Kind) && !timed[req.ID] && ev.HideSeconds > 0 {
 				timed[req.ID] = true
 				time.AfterFunc(time.Duration(ev.HideSeconds)*hideUnit, func() { dismiss(req.ID) })

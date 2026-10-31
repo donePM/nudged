@@ -287,6 +287,41 @@ func TestRunPanelLiveTimeout(t *testing.T) {
 	}
 }
 
+func TestGenericPanel(t *testing.T) {
+	perm := proto.PendingRequest{Kind: proto.Permission, Payload: []byte(`{"cwd":"/a/proj","tool_name":"Bash","tool_input":{"command":"ls"}}`)}
+	if g := genericPanel(perm); g != (genericData{Kind: "permission", Tool: "Bash", Project: "proj"}) {
+		t.Errorf("permission: %+v", g)
+	}
+	q := proto.PendingRequest{Kind: proto.Question, Payload: []byte(`{"cwd":"/a/proj","tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"One?"},{"question":"Two?"}]}}`)}
+	if g := genericPanel(q); g != (genericData{Kind: "question", Question: "One?", Project: "proj"}) {
+		t.Errorf("question: %+v", g)
+	}
+	for _, payload := range []string{"", "nope", "{}", `{"tool_input":{"questions":[]}}`} {
+		for _, kind := range []string{proto.Permission, proto.Question} {
+			if g := genericPanel(proto.PendingRequest{Kind: kind, Payload: []byte(payload)}); g != (genericData{Kind: kind}) {
+				t.Errorf("%s %q: %+v", kind, payload, g)
+			}
+		}
+	}
+}
+
+func TestRunPanelGeneric(t *testing.T) {
+	payload := []byte(`{"cwd":"/a/proj","tool_name":"Bash"}`)
+	for _, c := range []struct {
+		mode string
+		want bool
+	}{{"notify", true}, {"answer", false}} {
+		cfg := config.Default()
+		cfg.Mode = c.mode
+		changes, shows := loop(t, nil, cfg)
+		changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Permission, Payload: payload}}
+		s := next(t, shows)
+		if (s.Generic != nil) != c.want || c.want && s.Generic.Tool != "Bash" {
+			t.Errorf("%s: generic = %+v", c.mode, s.Generic)
+		}
+	}
+}
+
 func TestAnswerPanel(t *testing.T) {
 	payload := json.RawMessage(`{"permission_suggestions":[{"type":"addRules"}]}`)
 	pending := []proto.PendingRequest{{ID: "p", Kind: proto.Permission, Payload: payload}}

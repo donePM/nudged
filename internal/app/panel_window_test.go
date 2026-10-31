@@ -16,7 +16,10 @@ func loop(t *testing.T, configs chan config.Config, cfg config.Config) (chan []p
 	t.Helper()
 	changes, shows := make(chan []proto.PendingRequest), make(chan *panelShow, 1)
 	done := make(chan struct{})
-	go func() { runPanel(changes, configs, cfg, func(s *panelShow) { shows <- s }); close(done) }()
+	go func() {
+		runPanel(changes, configs, cfg, func(_ []proto.PendingRequest, s *panelShow, _ int) { shows <- s })
+		close(done)
+	}()
 	t.Cleanup(func() { close(changes); <-done })
 	return changes, shows
 }
@@ -175,5 +178,21 @@ func TestPanelOptions(t *testing.T) {
 	if o.Name != panelName || o.URL != "/#/Generic" || o.Width != 380 || o.Height != 220 ||
 		!o.Frameless || !o.AlwaysOnTop || !o.DisableResize || !o.Hidden {
 		t.Fatalf("options %+v", o)
+	}
+}
+
+func TestRunPanelLiveTimeout(t *testing.T) {
+	changes, configs, timeouts := make(chan []proto.PendingRequest), make(chan config.Config), make(chan int, 1)
+	go runPanel(changes, configs, config.Default(), func(_ []proto.PendingRequest, _ *panelShow, m int) { timeouts <- m })
+	t.Cleanup(func() { close(changes) })
+	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Permission}}
+	if m := <-timeouts; m != 30 {
+		t.Fatalf("timeout %d, want 30", m)
+	}
+	cfg := config.Default()
+	cfg.TimeoutMinutes = 5
+	configs <- cfg
+	if m := <-timeouts; m != 5 {
+		t.Fatalf("timeout %d, want 5", m)
 	}
 }

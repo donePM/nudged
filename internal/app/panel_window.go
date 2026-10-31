@@ -16,11 +16,15 @@ type panelShow struct {
 	Request proto.PendingRequest `json:"request"`
 	Others  int                  `json:"others"`
 	Mode    string               `json:"mode"` // "answer" or "notify"
+	// Permission is set when Request.Kind is proto.Permission.
+	Permission *permissionData `json:"permission,omitempty"`
 }
 
 type panelAnswer struct {
 	ID       string `json:"id"`
 	Behavior string `json:"behavior"`
+	// Suggestion is the permission_suggestions index for behavior "always".
+	Suggestion int `json:"suggestion,omitempty"`
 }
 
 type panelFocus struct {
@@ -57,7 +61,8 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	if s := app.Screen.GetPrimary(); s != nil {
 		w.SetPosition(s.WorkArea.X+s.WorkArea.Width-panelWidth-panelMargin, s.WorkArea.Y+panelMargin)
 	}
-	var cur *panelShow // only the main thread uses cur and view
+	var cur *panelShow // only the main thread uses cur, held and view
+	var held []proto.PendingRequest
 	app.Event.On("panel:ready", func(e *application.CustomEvent) {
 		application.InvokeSync(func() {
 			if cur != nil && e.Sender == panelName {
@@ -70,7 +75,18 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		if e.Sender != panelName || !ok {
 			return
 		}
+		var req proto.PendingRequest
+		application.InvokeSync(func() {
+			for _, p := range held {
+				if p.ID == a.ID {
+					req = p
+				}
+			}
+		})
 		out, err := decision(a.Behavior)
+		if req.Kind == proto.Permission {
+			out, err = permissionDecision(a.Behavior, a.Suggestion, req.Payload)
+		}
 		if err == nil {
 			err = srv.Answer(a.ID, out)
 		}
@@ -87,8 +103,13 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		application.InvokeSync(func() { c = cur })
 		focusRequest(c, f.ID)
 	})
-	go runPanel(srv.Changes(), panelConfigs, cfg, func(show *panelShow) {
+	go runPanel(srv.Changes(), panelConfigs, cfg, func(list []proto.PendingRequest, show *panelShow, timeoutMinutes int) {
+		if show != nil && show.Request.Kind == proto.Permission {
+			p := permissionPanel(show.Request, srv.Registry.List(), timeoutMinutes)
+			show.Permission = &p
+		}
 		application.InvokeSync(func() {
+			held = list
 			cur = show
 			if show == nil {
 				w.Hide()
@@ -112,8 +133,8 @@ func focusRequest(cur *panelShow, id string) {
 }
 
 // runPanel keeps the last snapshot and the current config until changes closes.
-// For each snapshot and each config, it calls show with the top request, or with nil to hide the panel.
-func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, show func(*panelShow)) {
+// For each snapshot and each config, it calls show with the snapshot, the top request (nil hides the panel) and the current timeout.
+func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, show func([]proto.PendingRequest, *panelShow, int)) {
 	var list []proto.PendingRequest
 	var seen map[string]bool
 	for {
@@ -134,10 +155,10 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 			}
 		case cfg = <-configs:
 		}
+		var s *panelShow
 		if req, others, ok := top(list, cfg); ok {
-			show(&panelShow{req, others, cfg.Mode})
-		} else {
-			show(nil)
+			s = &panelShow{Request: req, Others: others, Mode: cfg.Mode}
 		}
+		show(list, s, cfg.TimeoutMinutes)
 	}
 }

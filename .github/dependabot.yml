@@ -12,6 +12,10 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    # TypeScript 7 breaks many dependencies; stay on 6.x for now.
+    ignore:
+      - dependency-name: typescript
+        versions: ['>= 7']
     groups:
       npm:
         patterns: ['*']

@@ -17,11 +17,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # The frontend comes with S12b. Until then these steps skip.
+      # go build embeds frontend/dist/app, so the frontend build runs before GoReleaser.
       - uses: actions/setup-node@v4
         if: hashFiles('frontend/package.json') != ''
         with:
-          node-version: lts/*
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - if: hashFiles('frontend/package.json') != ''
         run: npm --prefix frontend ci && npm --prefix frontend run build
       - uses: goreleaser/goreleaser-action@v6

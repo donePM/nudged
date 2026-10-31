@@ -155,6 +155,40 @@ func TestRunPanelHide(t *testing.T) {
 	none(100 * time.Millisecond)
 }
 
+func TestRunPanelHideConfigChange(t *testing.T) {
+	old := hideUnit
+	hideUnit = time.Millisecond
+	t.Cleanup(func() { hideUnit = old })
+	for _, c := range []struct {
+		name          string
+		first, second int
+		want          bool
+	}{{"long to short", 100000, 20, true}, {"short to long", 100, 100000, false}, {"to zero", 100, 0, false}} {
+		t.Run(c.name, func(t *testing.T) {
+			calls := make(chan string, 10)
+			cfg := config.Default()
+			cfg.Events.Done.HideSeconds = c.first
+			changes := make(chan []proto.PendingRequest)
+			configs := make(chan config.Config)
+			go runPanel(changes, configs, cfg, func(id string) { calls <- id }, func(*panelShow, int) {})
+			t.Cleanup(func() { close(changes) })
+			changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Done}}
+			cfg.Events.Done.HideSeconds = c.second
+			configs <- cfg
+			select {
+			case id := <-calls:
+				if !c.want {
+					t.Fatalf("dismiss %q", id)
+				}
+			case <-time.After(300 * time.Millisecond):
+				if c.want {
+					t.Fatal("no dismiss")
+				}
+			}
+		})
+	}
+}
+
 func TestRunPanelHideNotShown(t *testing.T) {
 	old := hideUnit
 	hideUnit = time.Millisecond

@@ -5,7 +5,12 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"github.com/rokde/nudged/internal/app"
 )
+
+// startApp runs the tray app. Tests replace it.
+var startApp = app.Run
 
 var commands = map[string]func(args []string) int{}
 
@@ -23,10 +28,8 @@ func usage() {
 }
 
 func run(args []string) int {
-	// shortcut: no app yet, S12 starts the tray app here
 	if len(args) == 0 {
-		usage()
-		return 2
+		return startApp()
 	}
 	fn, ok := commands[args[0]]
 	if !ok {

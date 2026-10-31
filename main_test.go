@@ -60,9 +60,16 @@ func TestUnknownCommand(t *testing.T) {
 }
 
 func TestNoCommand(t *testing.T) {
-	code, stderr := runWithStderr(t, nil)
-	if code != 2 || !strings.Contains(stderr, "usage:") {
-		t.Fatalf("code %d, stderr %q", code, stderr)
+	calls := 0
+	old := startApp
+	startApp = func() int { calls++; return 7 }
+	defer func() { startApp = old }()
+	if code := run(nil); code != 7 || calls != 1 {
+		t.Fatalf("code %d, calls %d", code, calls)
+	}
+	code, stderr := runWithStderr(t, []string{"nope"})
+	if code != 2 || !strings.Contains(stderr, "usage:") || calls != 1 {
+		t.Fatalf("code %d, stderr %q, calls %d", code, stderr, calls)
 	}
 }
 

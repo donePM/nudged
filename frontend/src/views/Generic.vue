@@ -24,13 +24,15 @@ function answer(behavior: 'allow' | 'deny') {
   if (request.value) Events.Emit('panel:answer', { id: request.value.id, behavior })
 }
 
+const notice = (r: Request | null) => r?.kind === 'done' || r?.kind === 'waits'
+
 function jump() {
-  if (request.value && mode.value === 'notify') Events.Emit('panel:focus', { id: request.value.id })
+  if (request.value && (mode.value === 'notify' || notice(request.value))) Events.Emit('panel:focus', { id: request.value.id })
 }
 </script>
 
 <template>
-  <main v-if="request" :class="{ notify: mode === 'notify' }" @click="jump">
+  <main v-if="request" :class="{ notify: mode === 'notify' || notice(request) }" @click="jump">
     <header>
       <strong>{{ request.kind }}</strong>
       <span v-if="others > 0">+{{ others }} waiting</span>

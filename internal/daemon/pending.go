@@ -22,6 +22,18 @@ func holdKind(event, tool string) string {
 	return proto.Permission
 }
 
+// noticeKind returns the notice kind of a hook event, or "". A notice does not hold the hook.
+// A Stop with running background tasks is not done (docs/spike.md, "Other findings").
+func noticeKind(event, notificationType string, backgroundTasks int) string {
+	switch {
+	case event == "Stop" && backgroundTasks == 0:
+		return proto.Done
+	case event == "Notification" && notificationType == "idle_prompt":
+		return proto.Waits
+	}
+	return ""
+}
+
 type held struct {
 	proto.PendingRequest
 	done chan proto.Reply // gets exactly one reply, from queue.end
@@ -86,11 +98,16 @@ func (q *queue) answer(id string, payload json.RawMessage) error {
 	if !json.Valid(payload) {
 		return errors.New("payload is not valid JSON")
 	}
+	return q.endID(id, proto.Reply{OK: true, Output: payload})
+}
+
+// endID ends the request id with rep. It returns an error for an unknown id.
+func (q *queue) endID(id string, rep proto.Reply) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for _, h := range q.list {
 		if h.ID == id {
-			q.endLocked(h, proto.Reply{OK: true, Output: payload})
+			q.endLocked(h, rep)
 			return nil
 		}
 	}

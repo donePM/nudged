@@ -34,7 +34,7 @@ const Pending = "pending"
 // Answer is the Request.Kind that answers the held request Request.ID. The daemon sends Request.Payload verbatim as the hook output.
 const Answer = "answer"
 
-// PendingRequest is one hook that the daemon holds open. Kind is Permission or Question.
+// PendingRequest is one hook that the daemon holds open (Permission or Question), or a notice (Done or Waits) that does not hold the hook.
 type PendingRequest struct {
 	ID        string          `json:"id"`
 	Kind      string          `json:"kind"`

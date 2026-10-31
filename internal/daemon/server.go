@@ -87,6 +87,11 @@ func (s *Server) Answer(id string, payload json.RawMessage) error {
 	return s.queue.answer(id, payload)
 }
 
+// Dismiss ends the request id with no output. It returns an error for an unknown id.
+func (s *Server) Dismiss(id string) error {
+	return s.queue.endID(id, proto.Reply{OK: true})
+}
+
 // Pending returns the held requests, oldest first.
 func (s *Server) Pending() []proto.PendingRequest {
 	return s.queue.pending()
@@ -149,8 +154,10 @@ func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 	case proto.Hook:
 		s.Registry.Hook(req.Event, req.Payload, req.Term, req.TTY)
 		var p struct {
-			SessionID string `json:"session_id"`
-			ToolName  string `json:"tool_name"`
+			SessionID        string            `json:"session_id"`
+			ToolName         string            `json:"tool_name"`
+			NotificationType string            `json:"notification_type"`
+			BackgroundTasks  []json.RawMessage `json:"background_tasks"`
 		}
 		json.Unmarshal(req.Payload, &p)
 		// Claude Code can send a Notification while its permission prompt still waits.
@@ -162,6 +169,9 @@ func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 			if h != nil {
 				return proto.Reply{}, h
 			}
+		}
+		if kind := noticeKind(req.Event, p.NotificationType, len(p.BackgroundTasks)); kind != "" {
+			s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
 		}
 	case proto.Statusline:
 		var info proto.StatuslineInfo

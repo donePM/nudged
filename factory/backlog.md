@@ -8,7 +8,7 @@ that feature then references it. `/factory:import github <query>` or
 
 Example: `- [ ] PROJ-1 a hello CLI command that greets a name passed as an argument`
 
-- [ ] S1 Walking skeleton: `go run . version` prints the version; the repo has `go.mod`, `main.go` with the subcommand map, `internal/proto` (socket path, message types, event kinds), `Makefile` (`test`, `build`, `run`), a passing test, the CI workflow on `macos-latest`, `LICENSE` (MIT) and `.gitignore`.
+- [x] S1 Walking skeleton: `go run . version` prints the version; the repo has `go.mod`, `main.go` with the subcommand map, `internal/proto` (socket path, message types, event kinds), `Makefile` (`test`, `build`, `run`), a passing test, the CI workflow on `macos-latest`, `LICENSE` (MIT) and `.gitignore`. → 001-walking-skeleton
 - [ ] S2 Spike report: `docs/spike.md` answers the 9 open technical questions of the PRD with evidence (Claude Code docs and tests against the installed Claude Code 2.1.316), names the exact hook input and output JSON for each event, and records each decision or fallback. Needs S1.
 - [ ] S3 Config file: `internal/config` loads and saves `~/.config/nudged/config.toml` with all PRD defaults, creates it on first use, and keeps hand edits; `nudged config` prints the path and the values. Needs S1.
 - [ ] S4 Hook client: `nudged hook <event>` reads the hook JSON from stdin, adds TTY (from the parent process via `ps`) and `TERM_PROGRAM`, sends it to the socket, waits for the reply, and prints it; with no socket it exits 0 at once with no output (test with a fake server). Needs S1.

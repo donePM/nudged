@@ -56,7 +56,7 @@ function save() {
       </select>
     </label>
     <label>Timeout (minutes)
-      <input v-model.number="cfg.TimeoutMinutes" type="number" min="1" max="1440" required>
+      <input v-model.number="cfg.TimeoutMinutes" type="number" min="1" max="30" required>
     </label>
     <label>Start at login
       <input v-model="cfg.StartAtLogin" type="checkbox">

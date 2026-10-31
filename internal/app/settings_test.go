@@ -81,11 +81,11 @@ func TestDecodeConfigKeepsFields(t *testing.T) {
 
 func TestSaveSettingsRejects(t *testing.T) {
 	cases := map[string]func(*config.Config){
-		"mode":         func(c *config.Config) { c.Mode = "loud" },
-		"timeout 0":    func(c *config.Config) { c.TimeoutMinutes = 0 },
-		"timeout-1":    func(c *config.Config) { c.TimeoutMinutes = -1 },
-		"timeout 1441": func(c *config.Config) { c.TimeoutMinutes = 1441 },
-		"hide":         func(c *config.Config) { c.Events.Waits.HideSeconds = -1 },
+		"mode":       func(c *config.Config) { c.Mode = "loud" },
+		"timeout 0":  func(c *config.Config) { c.TimeoutMinutes = 0 },
+		"timeout-1":  func(c *config.Config) { c.TimeoutMinutes = -1 },
+		"timeout 31": func(c *config.Config) { c.TimeoutMinutes = 31 },
+		"hide":       func(c *config.Config) { c.Events.Waits.HideSeconds = -1 },
 	}
 	for name, change := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestSaveSettingsRejects(t *testing.T) {
 			if err == nil {
 				t.Fatal("no error")
 			}
-			if name == "timeout 1441" && !strings.Contains(err.Error(), "1440") {
+			if name == "timeout 31" && !strings.Contains(err.Error(), "30") {
 				t.Fatalf("error %q", err)
 			}
 			after, _ := os.ReadFile(path)
@@ -249,11 +249,12 @@ func TestLoadSettingsStartAtLogin(t *testing.T) {
 func TestSaveSettingsMaxTimeout(t *testing.T) {
 	srv := testServer(t)
 	cfg := config.Default()
-	cfg.TimeoutMinutes = 1440
+	cfg.TimeoutMinutes = 30
+	srv.SetHoldTimeout(time.Minute)
 	if err := saveSettings(srv, cfg); err != nil {
 		t.Fatal(err)
 	}
-	if srv.HoldTimeout != 24*time.Hour {
+	if srv.HoldTimeout != 30*time.Minute {
 		t.Fatalf("hold timeout %v", srv.HoldTimeout)
 	}
 }
@@ -291,9 +292,12 @@ func TestSettingsViewSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"`Test ${r.label} sound`", `max="1440"`} {
+	for _, want := range []string{"`Test ${r.label} sound`", `max="30"`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("Settings.vue lacks %s", want)
 		}
+	}
+	if strings.Contains(string(b), `max="1440"`) {
+		t.Error(`Settings.vue still has max="1440"`)
 	}
 }

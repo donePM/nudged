@@ -11,6 +11,7 @@ import (
 
 	"github.com/rokde/nudged/internal/config"
 	"github.com/rokde/nudged/internal/daemon"
+	"github.com/rokde/nudged/internal/loginitem"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -164,5 +165,75 @@ func TestRunHooks(t *testing.T) {
 	}
 	if _, err := runHooks("format-disk"); err == nil {
 		t.Fatal("no error for unknown action")
+	}
+}
+
+func TestSaveSettingsStartAtLogin(t *testing.T) {
+	srv := testServer(t)
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "nudged")
+	if err := os.WriteFile(bin, nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(bin, link); err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := executable
+	executable = func() (string, error) { return link, nil }
+	t.Cleanup(func() { executable = old })
+	plist := filepath.Join(os.Getenv("HOME"), "Library", "LaunchAgents", "de.rokde.nudged.plist")
+
+	for _, on := range []bool{true, false} {
+		cfg := config.Default()
+		cfg.StartAtLogin = on
+		if err := saveSettings(srv, cfg); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(plist)
+		if on && !strings.Contains(string(data), "<string>"+want+"</string>") {
+			t.Errorf("plist %q (%v) has no %s", data, err, want)
+		}
+		if !on && !os.IsNotExist(err) {
+			t.Errorf("plist still there: %v", err)
+		}
+		got, err := config.Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.StartAtLogin != on {
+			t.Errorf("config StartAtLogin %v, want %v", got.StartAtLogin, on)
+		}
+	}
+}
+
+func TestLoadSettingsStartAtLogin(t *testing.T) {
+	sockPath(t)
+	for _, on := range []bool{true, false} {
+		cfg := config.Default()
+		cfg.StartAtLogin = !on
+		if err := config.Save(cfg); err != nil {
+			t.Fatal(err)
+		}
+		var err error
+		if on {
+			err = loginitem.Enable("/x/nudged")
+		} else {
+			err = loginitem.Disable()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := loadSettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.StartAtLogin != on || got.StartAtLogin != loginitem.Enabled() {
+			t.Errorf("StartAtLogin %v, want %v", got.StartAtLogin, on)
+		}
 	}
 }

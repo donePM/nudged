@@ -77,3 +77,12 @@ func TestCIWorkflow(t *testing.T) {
 		}
 	}
 }
+
+func TestHookNoArgs(t *testing.T) {
+	if _, ok := commands["hook"]; !ok {
+		t.Fatal("hook not registered")
+	}
+	if code := run([]string{"hook"}); code != 0 {
+		t.Fatalf("exit code %d", code)
+	}
+}

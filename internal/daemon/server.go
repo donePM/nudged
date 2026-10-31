@@ -2,8 +2,10 @@ package daemon
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -14,7 +16,12 @@ import (
 
 type Server struct {
 	Registry *Registry
-	ln       net.Listener
+	// HoldTimeout ends a held request with no output. Zero means 30 min. Set it before Serve.
+	HoldTimeout time.Duration
+	// LineDeadline limits the time to read the request line. Zero means 5 s. Set it before Serve.
+	LineDeadline time.Duration
+	ln           net.Listener
+	queue        queue
 }
 
 // Listen creates the socket at path. It removes a stale socket file and fails when a daemon listens on it.
@@ -59,39 +66,91 @@ func (s *Server) Serve() error {
 	}
 }
 
-// Close stops the server. The listener removes the socket file.
+// Close stops the server and ends all held requests with no output. The listener removes the socket file.
 func (s *Server) Close() error {
+	s.queue.setPaused(true)
 	return s.ln.Close()
+}
+
+// SetPaused sets the pause flag. Pause ends all held requests, and while paused the server holds no new request.
+func (s *Server) SetPaused(paused bool) {
+	s.queue.setPaused(paused)
 }
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	// A client that sends no line must not hold the goroutine open.
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	conn.SetDeadline(time.Now().Add(cmp.Or(s.LineDeadline, 5*time.Second)))
+	r := bufio.NewReader(conn)
 	var req proto.Request
-	if proto.ReadLine(bufio.NewReader(conn), &req) != nil {
+	if proto.ReadLine(r, &req) != nil {
+		// The write fails at once when the deadline passed or the client left.
+		proto.WriteLine(conn, proto.Reply{Error: "bad request line"})
 		return
 	}
-	proto.WriteLine(conn, s.apply(req))
+	rep, h := s.apply(req)
+	if h != nil {
+		rep = s.hold(conn, r, h)
+	}
+	proto.WriteLine(conn, rep)
 }
 
-func (s *Server) apply(req proto.Request) proto.Reply {
+// hold waits for the one reply of h. A timeout or a closed client connection ends h with no output.
+func (s *Server) hold(conn net.Conn, r *bufio.Reader, h *held) proto.Reply {
+	conn.SetDeadline(time.Time{})
+	t := time.AfterFunc(cmp.Or(s.HoldTimeout, 30*time.Minute), func() { s.queue.end(h, proto.Reply{OK: true}) })
+	defer t.Stop()
+	// The read stops at EOF, or when handle closes conn.
+	go func() {
+		io.Copy(io.Discard, r)
+		s.queue.end(h, proto.Reply{OK: true})
+	}()
+	return <-h.done
+}
+
+// apply runs one request. It returns a held request when the hook must wait for an answer.
+func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 	switch req.Kind {
 	case proto.Hook:
 		s.Registry.Hook(req.Event, req.Payload, req.Term, req.TTY)
+		var p struct {
+			SessionID string `json:"session_id"`
+			ToolName  string `json:"tool_name"`
+		}
+		json.Unmarshal(req.Payload, &p)
+		// Claude Code can send a Notification while its permission prompt still waits.
+		if p.SessionID != "" && req.Event != "Notification" {
+			s.queue.endWhere(func(h *held) bool { return h.SessionID == p.SessionID })
+		}
+		if kind := holdKind(req.Event, p.ToolName); kind != "" {
+			h := s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
+			if h != nil {
+				return proto.Reply{}, h
+			}
+		}
 	case proto.Statusline:
 		var info proto.StatuslineInfo
 		if json.Unmarshal(req.Payload, &info) == nil {
 			s.Registry.Statusline(info)
 		}
 	case proto.Status:
-		out, err := json.Marshal(s.Registry.List())
-		if err != nil {
-			return proto.Reply{Error: err.Error()}
+		return output(s.Registry.List()), nil
+	case proto.Pending:
+		return output(s.queue.pending()), nil
+	case proto.Answer:
+		if err := s.queue.answer(req.ID, req.Payload); err != nil {
+			return proto.Reply{Error: err.Error()}, nil
 		}
-		return proto.Reply{OK: true, Output: out}
 	default:
-		return proto.Reply{Error: "unknown kind"}
+		return proto.Reply{Error: "unknown kind"}, nil
 	}
-	return proto.Reply{OK: true}
+	return proto.Reply{OK: true}, nil
+}
+
+func output(v any) proto.Reply {
+	out, err := json.Marshal(v)
+	if err != nil {
+		return proto.Reply{Error: err.Error()}
+	}
+	return proto.Reply{OK: true, Output: out}
 }

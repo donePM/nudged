@@ -28,6 +28,24 @@ const Statusline = "statusline"
 // Status is the Request.Kind of a session query. The Reply.Output is a JSON array of Session.
 const Status = "status"
 
+// Pending is the Request.Kind of a queue query. The Reply.Output is a JSON array of PendingRequest, oldest first.
+const Pending = "pending"
+
+// Answer is the Request.Kind that answers the held request Request.ID. The daemon sends Request.Payload verbatim as the hook output.
+const Answer = "answer"
+
+// PendingRequest is one hook that the daemon holds open. Kind is Permission or Question.
+type PendingRequest struct {
+	ID        string          `json:"id"`
+	Kind      string          `json:"kind"`
+	SessionID string          `json:"session_id"`
+	Event     string          `json:"event"`
+	Payload   json.RawMessage `json:"payload"`
+	Term      string          `json:"term"`
+	TTY       string          `json:"tty"`
+	Started   time.Time       `json:"started"`
+}
+
 type StatuslineInfo struct {
 	SessionID  string `json:"session_id"`
 	Cwd        string `json:"cwd,omitempty"`
@@ -51,6 +69,7 @@ type Session struct {
 
 type Request struct {
 	Kind    string          `json:"kind"`
+	ID      string          `json:"id,omitempty"`
 	Event   string          `json:"event"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 	TTY     string          `json:"tty,omitempty"`

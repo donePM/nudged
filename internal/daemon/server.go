@@ -77,6 +77,13 @@ func (s *Server) SetPaused(paused bool) {
 	s.queue.setPaused(paused)
 }
 
+// Paused reports the pause flag.
+func (s *Server) Paused() bool {
+	s.queue.mu.Lock()
+	defer s.queue.mu.Unlock()
+	return s.queue.paused
+}
+
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	// A client that sends no line must not hold the goroutine open.

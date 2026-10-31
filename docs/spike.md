@@ -70,7 +70,7 @@ Decision: S20 uses the GoReleaser `homebrew_casks` hook with a `run "/usr/bin/xa
 ## Q9 Is the name `nudged` free on GitHub and Homebrew?
 
 Answer: yes.
-Evidence: `brew info nudged`: "No available formula with the name "nudged"". `brew info --cask nudged`: "Cask 'nudged' is unavailable: No Cask with this name exists." `brew search nudged`: only `nuget`, `nuage`, `nudge` (the cask `nudge` is "Nudge", "Application for enforcing OS updates", macadmins). `gh search repos nudged`: `axelpale/nudged` and `axelpale/nudged-py` (a 2D point transform library), no macOS app and no Claude Code tool. `gh api repos/rokde/nudged`: the repo exists and is ours. `gh api repos/donePM/homebrew-tap`: 404.
+Evidence: `brew info nudged`: "No available formula with the name "nudged"". `brew info --cask nudged`: "Cask 'nudged' is unavailable: No Cask with this name exists." `brew search nudged`: only `nuget`, `nuage`, `nudge` (the cask `nudge` is "Nudge", "Application for enforcing OS updates", macadmins). `gh search repos nudged`: `axelpale/nudged` and `axelpale/nudged-py` (a 2D point transform library), no macOS app and no Claude Code tool. `gh api repos/rokde/nudged`: the repo exists and is ours. `gh api repos/rokde/homebrew-tap`: 404.
 Decision: Keep the name `nudged` and the cask token `nudged` in `donePM/homebrew-tap`. The README names the difference to the admin tool "Nudge". The PRD fallback (other name) is not necessary.
 
 ## Other findings

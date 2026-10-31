@@ -87,7 +87,7 @@ func fileContains(t *testing.T, file string, want ...string) string {
 func TestGoreleaserConfig(t *testing.T) {
 	fileContains(t, ".goreleaser.yaml",
 		"version: 2", "CGO_ENABLED=1", "arm64", "amd64", "universal_binaries", "main.version",
-		"donePM/homebrew-tap", "HOMEBREW_TAP_TOKEN", "postflight", "com.apple.quarantine")
+		"donePM/homebrew-tap", "owner: donePM", "name: homebrew-tap", "HOMEBREW_TAP_TOKEN", "postflight", "com.apple.quarantine")
 }
 
 func TestReleaseWorkflow(t *testing.T) {

@@ -71,6 +71,9 @@ func (r *Registry) Hook(event string, payload []byte, term, tty string) {
 	}
 	s := r.session(p.SessionID, p.Cwd)
 	s.Status = status
+	if event == "UserPromptSubmit" {
+		s.PromptStarted = s.LastActivity
+	}
 	if term != "" {
 		s.Term = term
 	}

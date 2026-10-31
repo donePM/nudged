@@ -65,6 +65,8 @@ type Session struct {
 	Effort       string    `json:"effort"`
 	ContextPct   int       `json:"context_pct"`
 	LastActivity time.Time `json:"last_activity"`
+	// PromptStarted is the time of the last UserPromptSubmit.
+	PromptStarted time.Time `json:"prompt_started"`
 }
 
 type Request struct {

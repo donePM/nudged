@@ -141,6 +141,7 @@ func run(socket string) int {
 		}
 	}
 	tray.SetMenu(menu)
+	setupSessions(app, tray, srv)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		application.InvokeSync(func() { setupHotkey(pause) })
 	})

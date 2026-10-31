@@ -11,5 +11,6 @@ factory/audit.md
 # <<< software factory
 bin/
 .DS_Store
+dist/
 frontend/node_modules/
 frontend/dist/app/

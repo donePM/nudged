@@ -6,13 +6,15 @@ interface Request { id: string; kind: string; [key: string]: unknown }
 
 const request = ref<Request | null>(null)
 const others = ref(0)
+const mode = ref('answer')
 let off = () => {}
 
 onMounted(() => {
   off = Events.On('panel:show', (e) => {
-    const data = e.data as { request: Request; others: number }
+    const data = e.data as { request: Request; others: number; mode: string }
     request.value = data.request
     others.value = data.others
+    mode.value = data.mode
   })
   Events.Emit('panel:ready', null)
 })
@@ -21,16 +23,20 @@ onUnmounted(() => off())
 function answer(behavior: 'allow' | 'deny') {
   if (request.value) Events.Emit('panel:answer', { id: request.value.id, behavior })
 }
+
+function jump() {
+  if (request.value && mode.value === 'notify') Events.Emit('panel:focus', { id: request.value.id })
+}
 </script>
 
 <template>
-  <main v-if="request">
+  <main v-if="request" :class="{ notify: mode === 'notify' }" @click="jump">
     <header>
       <strong>{{ request.kind }}</strong>
       <span v-if="others > 0">+{{ others }} waiting</span>
     </header>
     <pre>{{ JSON.stringify(request, null, 2) }}</pre>
-    <footer v-if="request.kind === 'permission'">
+    <footer v-if="request.kind === 'permission' && mode !== 'notify'">
       <button @click="answer('deny')">Deny</button>
       <button class="primary" @click="answer('allow')">Allow</button>
     </footer>
@@ -41,6 +47,7 @@ function answer(behavior: 'allow' | 'deny') {
 :root { color-scheme: light dark; }
 body { margin: 0; font: 13px -apple-system, system-ui, sans-serif; background: #f6f6f6; color: #1d1d1f; }
 main { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; gap: 8px; }
+main.notify { cursor: pointer; }
 header { display: flex; justify-content: space-between; text-transform: capitalize; }
 header span { opacity: 0.7; text-transform: none; }
 pre { flex: 1; margin: 0; overflow: auto; font-size: 11px; background: rgba(0, 0, 0, 0.05); padding: 6px; border-radius: 6px; }

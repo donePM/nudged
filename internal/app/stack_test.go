@@ -71,3 +71,14 @@ func TestDecision(t *testing.T) {
 		t.Fatal("x: no error")
 	}
 }
+
+func TestPanelView(t *testing.T) {
+	for _, kind := range []string{proto.Permission, proto.Question} {
+		if v := panelView(&panelShow{Request: proto.PendingRequest{Kind: kind}, Mode: "notify"}); v != "Generic" {
+			t.Errorf("%s notify: %q", kind, v)
+		}
+		if v := panelView(&panelShow{Request: proto.PendingRequest{Kind: kind}, Mode: "answer"}); v != viewFor(kind) || v == "Generic" {
+			t.Errorf("%s answer: %q", kind, v)
+		}
+	}
+}

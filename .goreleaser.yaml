@@ -1,0 +1,67 @@
+# Release config for GoReleaser v2 (OSS features only).
+version: 2
+
+project_name: nudged
+
+builds:
+  - id: nudged
+    binary: nudged
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+universal_binaries:
+  - id: nudged
+    replace: true
+    # The archive then has the binary at its place in the app bundle.
+    name_template: nudged.app/Contents/MacOS/nudged
+    hooks:
+      post:
+        - cmd: scripts/app-bundle.sh "{{ .Path }}" "{{ .Version }}" dist/app
+
+archives:
+  - id: nudged
+    formats:
+      - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_universal"
+    files:
+      - src: dist/app/nudged.app/Contents/Info.plist
+        dst: nudged.app/Contents
+        strip_parent: true
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+
+# Writes Casks/nudged.rb in rokde/homebrew-tap.
+# The step skips when HOMEBREW_TAP_TOKEN is empty.
+homebrew_casks:
+  - name: nudged
+    ids:
+      - nudged
+    homepage: https://github.com/rokde/nudged
+    description: Tray app and hooks for Claude Code
+    repository:
+      owner: rokde
+      name: homebrew-tap
+      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+    directory: Casks
+    skip_upload: '{{ not (isEnvSet "HOMEBREW_TAP_TOKEN") }}'
+    custom_block: |
+      app "nudged.app"
+    binaries:
+      - "#{appdir}/nudged.app/Contents/MacOS/nudged"
+    # GoReleaser renders this as the cask postflight_steps block.
+    hooks:
+      post:
+        install_steps: |
+          # The app is not signed, so macOS blocks it while the quarantine flag is set.
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .AppDir }}/nudged.app"]

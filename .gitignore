@@ -11,3 +11,4 @@ factory/audit.md
 # <<< software factory
 bin/
 .DS_Store
+dist/

@@ -52,6 +52,14 @@ func focusTarget(cur *panelShow, id string) (tty, term string, ok bool) {
 	return cur.Request.TTY, cur.Request.Term, true
 }
 
+// panelView returns the view of s. Notify mode uses Generic for each kind: it has no answer controls, and a click sends panel:focus.
+func panelView(s *panelShow) string {
+	if s.Mode == "notify" {
+		return "Generic"
+	}
+	return viewFor(s.Request.Kind)
+}
+
 // top returns the oldest shown request of list (oldest first) and the count of the other shown requests.
 func top(list []proto.PendingRequest, cfg config.Config) (req proto.PendingRequest, others int, ok bool) {
 	for _, p := range list {

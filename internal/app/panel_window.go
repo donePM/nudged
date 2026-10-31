@@ -115,7 +115,7 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 				w.Hide()
 				return
 			}
-			if v := viewFor(show.Request.Kind); v != view {
+			if v := panelView(show); v != view {
 				view = v
 				w.SetURL("/#/" + v) // the new page sends panel:ready
 			}

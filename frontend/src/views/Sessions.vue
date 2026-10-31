@@ -33,7 +33,8 @@ const focus = (id: string) => Events.Emit('sessions:focus', id)
 
 <template>
   <main>
-    <table>
+    <div class="list">
+      <table>
       <thead>
         <tr>
           <th>Project</th><th>Path</th><th>Status</th><th>Terminal</th><th>Model</th><th>Effort</th><th>Context</th>
@@ -41,23 +42,28 @@ const focus = (id: string) => Events.Emit('sessions:focus', id)
       </thead>
       <tbody>
         <tr v-for="s in data.sessions" :key="s.session_id" :class="s.status" tabindex="0"
-            @click="focus(s.session_id)" @keydown.enter="focus(s.session_id)">
+            @click="focus(s.session_id)" @keydown.enter="focus(s.session_id)" @keydown.space.prevent="focus(s.session_id)">
           <td>{{ s.project }}</td>
           <td class="path" :title="s.path">{{ s.path }}</td>
           <td>{{ s.status }}</td>
           <td>{{ s.term }}</td>
-          <td>{{ s.model }}</td>
-          <td>{{ s.effort }}</td>
+          <td>{{ s.model || '—' }}</td>
+          <td>{{ s.effort || '—' }}</td>
           <td>{{ s.context_pct }} %</td>
         </tr>
         <tr v-if="!data.sessions.length"><td colspan="7" class="empty">No sessions</td></tr>
       </tbody>
     </table>
+    </div>
     <footer>
       Today: {{ data.usage.tokens.toLocaleString() }} tokens · ≈ ${{ data.usage.cost_usd.toFixed(2) }}
     </footer>
   </main>
 </template>
+
+<style>
+body { margin: 0; }
+</style>
 
 <style scoped>
 main {
@@ -67,15 +73,15 @@ main {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  margin: 0;
 }
-table { width: 100%; border-collapse: collapse; overflow: auto; }
+.list { flex: 1; overflow: auto; min-height: 0; }
+table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 4px 8px; white-space: nowrap; }
 th { font-weight: 600; color: #6e6e73; border-bottom: 1px solid #d2d2d7; }
 tbody tr { cursor: pointer; }
 tbody tr:hover, tbody tr:focus { background: rgba(0, 0, 0, 0.06); outline: none; }
 tr.waiting td { font-weight: 600; color: #bf4800; }
-.path { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.path { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 .empty { color: #6e6e73; text-align: center; cursor: default; }
 footer { margin-top: auto; padding: 6px 8px; border-top: 1px solid #d2d2d7; color: #6e6e73; }
 @media (prefers-color-scheme: dark) {

@@ -14,11 +14,15 @@ const panelName = "panel"
 type panelShow struct {
 	Request proto.PendingRequest `json:"request"`
 	Others  int                  `json:"others"`
+	// Permission is set when Request.Kind is proto.Permission.
+	Permission *permissionData `json:"permission,omitempty"`
 }
 
 type panelAnswer struct {
 	ID       string `json:"id"`
 	Behavior string `json:"behavior"`
+	// Suggestion is the permission_suggestions index for behavior "always".
+	Suggestion int `json:"suggestion,omitempty"`
 }
 
 func init() {
@@ -36,7 +40,8 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	if s := app.Screen.GetPrimary(); s != nil {
 		w.SetPosition(s.WorkArea.X+s.WorkArea.Width-width-margin, s.WorkArea.Y+margin)
 	}
-	var cur *panelShow // only the main thread uses cur and view
+	var cur *panelShow // only the main thread uses cur, held and view
+	var held []proto.PendingRequest
 	app.Event.On("panel:ready", func(e *application.CustomEvent) {
 		application.InvokeSync(func() {
 			if cur != nil && e.Sender == panelName {
@@ -49,7 +54,18 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		if e.Sender != panelName || !ok {
 			return
 		}
+		var req proto.PendingRequest
+		application.InvokeSync(func() {
+			for _, p := range held {
+				if p.ID == a.ID {
+					req = p
+				}
+			}
+		})
 		out, err := decision(a.Behavior)
+		if req.Kind == proto.Permission {
+			out, err = permissionDecision(a.Behavior, a.Suggestion, req.Payload)
+		}
 		if err == nil {
 			err = srv.Answer(a.ID, out)
 		}
@@ -60,13 +76,19 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	go func() {
 		for list := range srv.Changes() {
 			req, others, ok := top(list, cfg)
+			var perm *permissionData
+			if ok && req.Kind == proto.Permission {
+				p := permissionPanel(req, srv.Registry.List(), cfg.TimeoutMinutes)
+				perm = &p
+			}
 			application.InvokeSync(func() {
+				held = list
 				if !ok {
 					cur = nil
 					w.Hide()
 					return
 				}
-				cur = &panelShow{req, others}
+				cur = &panelShow{req, others, perm}
 				if v := viewFor(req.Kind); v != view {
 					view = v
 					w.SetURL("/#/" + v) // the new page sends panel:ready

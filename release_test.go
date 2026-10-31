@@ -88,7 +88,7 @@ func fileContains(t *testing.T, file string, want ...string) string {
 func TestGoreleaserConfig(t *testing.T) {
 	s := fileContains(t, ".goreleaser.yaml",
 		"version: 2", "CGO_ENABLED=1", "arm64", "amd64", "universal_binaries", "main.version",
-		"rokde/homebrew-tap", "HOMEBREW_TAP_TOKEN", "postflight", "com.apple.quarantine")
+		"donePM/homebrew-tap", "owner: donePM", "name: homebrew-tap", "HOMEBREW_TAP_TOKEN", "postflight", "com.apple.quarantine")
 	skip := regexp.MustCompile(`(?m)^\s*skip_upload:.*$`).FindString(s)
 	if !strings.Contains(skip, "HOMEBREW_TAP_TOKEN") || !strings.Contains(skip, ".Prerelease") {
 		t.Errorf("skip_upload line %q must check HOMEBREW_TAP_TOKEN and .Prerelease", skip)

@@ -9,12 +9,11 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/rokde/nudged/frontend"
-	"github.com/rokde/nudged/internal/config"
-	"github.com/rokde/nudged/internal/daemon"
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/frontend"
+	"github.com/donepm/nudged/internal/config"
+	"github.com/donepm/nudged/internal/daemon"
+	"github.com/donepm/nudged/internal/proto"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -38,25 +37,15 @@ var registerHotkey = func(onPress func()) error { return errors.New("hotkey not 
 
 var logw io.Writer = os.Stderr
 
-// shortcut: no settings window, S19 sets this func
-var openSettings = func() {}
-
-// startDaemon listens on socket and serves in the background. The channel gets the error of Serve.
-func startDaemon(socket string) (*daemon.Server, <-chan error, error) {
-	srv, err := daemon.Listen(socket, daemon.NewRegistry())
+// startDaemon listens on socket and serves in the background. It returns the loaded config. The channel gets the error of Serve.
+func startDaemon(socket string) (*daemon.Server, config.Config, <-chan error, error) {
+	srv, cfg, err := daemon.Start(socket, "nudged:")
 	if err != nil {
-		return nil, nil, err
-	}
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "nudged:", err)
-	}
-	if cfg.TimeoutMinutes > 0 {
-		srv.HoldTimeout = time.Duration(cfg.TimeoutMinutes) * time.Minute
+		return nil, config.Config{}, nil, err
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve() }()
-	return srv, errc, nil
+	return srv, cfg, errc, nil
 }
 
 // assets serves the Vite output in frontend/dist/app. Without a build, it serves the placeholder frontend/dist/index.html.
@@ -109,11 +98,12 @@ func Run() int {
 }
 
 func run(socket string) int {
-	srv, errc, err := startDaemon(socket)
+	srv, cfg, errc, err := startDaemon(socket)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nudged:", err)
 		return 1
 	}
+	syncLoginItem(cfg)
 	app := application.New(application.Options{
 		Name:       "nudged",
 		Mac:        application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},
@@ -131,7 +121,7 @@ func run(socket string) int {
 	}
 	actions := []func(*application.Context){
 		func(*application.Context) { pause() },
-		func(*application.Context) { openSettings() },
+		func(*application.Context) { openSettings(app, srv) },
 		func(*application.Context) { quit(srv, app.Quit) },
 	}
 	for i, it := range menuItems {
@@ -141,7 +131,10 @@ func run(socket string) int {
 		}
 	}
 	tray.SetMenu(menu)
+	setupSessions(app, tray, srv)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		startPanel(app, srv, cfg)
+		startQuestion(app, srv)
 		application.InvokeSync(func() { setupHotkey(pause) })
 	})
 	go func() {

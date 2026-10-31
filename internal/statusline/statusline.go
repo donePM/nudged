@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // shortcut: 200 ms in total for the socket, make it a config value when users see lost updates.

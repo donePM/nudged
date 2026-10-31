@@ -11,7 +11,7 @@ Developers who run many Claude Code sessions in parallel on macOS get a tray app
 - In: tray menu with the session list (waiting first, then last activity), a badge, tokens and cost today (≈ API prices), Pause (⌥⌘P), Settings (⌘,), Quit (⌘Q).
 - In: settings window and the file `~/.config/nudged/config.toml`. Hook install and removal in `~/.claude/settings.json`. Start at login. Synthesized sounds, off by default.
 - In: focus jump to Terminal.app and iTerm2 by TTY (AppleScript). Ghostty is best effort: the app comes to the front.
-- In: Phase 0 spike report, CI on GitHub Actions (`macos-latest`), release with GoReleaser to the tap `rokde/homebrew-tap` (unsigned), README, MIT license.
+- In: Phase 0 spike report, CI on GitHub Actions (`macos-latest`), release with GoReleaser to the tap `donePM/homebrew-tap` (unsigned), README, MIT license.
 - Out: Linux, Windows (Phase 3).
 - Out: Codex and other agents (Phase 3; Codex cannot answer permission requests).
 - Out: signing and notarization, the official homebrew/cask (Phase 3, costs money).
@@ -28,7 +28,7 @@ Developers who run many Claude Code sessions in parallel on macOS get a tray app
 - Frontend check: `npm --prefix frontend run build` (runs `vue-tsc --noEmit` and `vite build`).
 - Build: `make build` (frontend build, then `go build -o bin/nudged .`). Start: `make run`, or `./bin/nudged`. Headless daemon for tests: `nudged daemon`.
 - CI: GitHub Actions on `macos-latest`: `go vet`, `go test ./...`, frontend build.
-- Release: GoReleaser in GitHub Actions on a `v*` tag. Universal binary (arm64 + amd64) in `nudged.app`, cask update in `rokde/homebrew-tap`.
+- Release: GoReleaser in GitHub Actions on a `v*` tag. Universal binary (arm64 + amd64) in `nudged.app`, cask update in `donePM/homebrew-tap`.
 
 ## Dependencies
 - github.com/wailsapp/wails/v3 v3.0.0: tray icon and frameless webview panels; the Go standard library has no GUI.
@@ -68,7 +68,7 @@ Developers who run many Claude Code sessions in parallel on macOS get a tray app
 17. S17 Notice panels: `Stop` shows "Session done" (project, session, duration) and idle `Notification` shows "Session waits" (project, session, since when); a click jumps to the terminal, and the panels hide after the configured time (defaults 5 s and 10 s). Needs S14.
 18. S18 Session list and badge: a click on the tray icon opens a list of all sessions (project, path, status, terminal, model, effort, context %) with tokens and cost today at the bottom, the icon shows a badge with the number of waiting sessions, and a click on a session jumps to its terminal. Needs S9, S10, S12.
 19. S19 Settings window: ⌘, opens a window for all PRD settings (mode, timeout, show, sound with a test button, and hide time per event), buttons to install and remove the hooks, and a "Start at login" switch (LaunchAgent plist in `~/Library/LaunchAgents`); changes save to `config.toml` and apply at once. Needs S3, S8, S11, S12.
-20. S20 Release: a `v*` tag runs GoReleaser on `macos-latest`, builds the universal `nudged.app` (Info.plist with `LSUIElement`) as a zip on GitHub Releases, and updates the cask in `rokde/homebrew-tap` with a `postflight` that removes the quarantine flag; the README describes install (`brew install --cask rokde/tap/nudged`), `xattr -d com.apple.quarantine`, `nudged install-hooks`, settings, and the fallback. Needs S12.
+20. S20 Release: a `v*` tag runs GoReleaser on `macos-latest`, builds the universal `nudged.app` (Info.plist with `LSUIElement`) as a zip on GitHub Releases, and updates the cask in `donePM/homebrew-tap` with a `postflight` that removes the quarantine flag; the README describes install (`brew install --cask donepm/tap/nudged`), `xattr -d com.apple.quarantine`, `nudged install-hooks`, settings, and the fallback. Needs S12.
 
 ## Open questions
-- The cask update needs the repo `rokde/homebrew-tap` and a token secret (for example `HOMEBREW_TAP_TOKEN`) in `rokde/nudged`. Decision for now: S20 creates the config, and the cask step skips when the secret is missing. The human must create the tap repo and the secret before the first tag.
+- The cask update needs the repo `donePM/homebrew-tap` and a token secret (for example `HOMEBREW_TAP_TOKEN`) in `donePM/nudged`. Decision for now: S20 creates the config, and the cask step skips when the secret is missing. The tap repo exists; the human must create the secret in `donePM/nudged` before the first tag.

@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/rokde/nudged/internal/hookclient"
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/hookclient"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func init() {

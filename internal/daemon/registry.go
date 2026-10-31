@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 var hookStatus = map[string]string{
@@ -21,7 +21,10 @@ var hookStatus = map[string]string{
 	"SessionEnd":       "",
 }
 
-// shortcut: a session with no SessionEnd stays in the registry, upgrade when S18 shows dead sessions.
+// staleAfter is the idle time after which List drops a session that never sent SessionEnd.
+const staleAfter = 12 * time.Hour
+
+// Registry keeps live sessions. List drops sessions idle for more than staleAfter.
 type Registry struct {
 	mu       sync.Mutex
 	sessions map[string]*proto.Session
@@ -71,6 +74,9 @@ func (r *Registry) Hook(event string, payload []byte, term, tty string) {
 	}
 	s := r.session(p.SessionID, p.Cwd)
 	s.Status = status
+	if event == "UserPromptSubmit" {
+		s.PromptStarted = s.LastActivity
+	}
 	if term != "" {
 		s.Term = term
 	}
@@ -94,7 +100,12 @@ func (r *Registry) Statusline(info proto.StatuslineInfo) {
 func (r *Registry) List() []proto.Session {
 	r.mu.Lock()
 	list := make([]proto.Session, 0, len(r.sessions))
-	for _, s := range r.sessions {
+	now := r.now()
+	for id, s := range r.sessions {
+		if now.Sub(s.LastActivity) > staleAfter {
+			delete(r.sessions, id)
+			continue
+		}
 		list = append(list, *s)
 	}
 	r.mu.Unlock()

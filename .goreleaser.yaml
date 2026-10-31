@@ -41,16 +41,16 @@ checksum:
 changelog:
   use: github
 
-# Writes Casks/nudged.rb in rokde/homebrew-tap.
+# Writes Casks/nudged.rb in donePM/homebrew-tap.
 # The step skips when HOMEBREW_TAP_TOKEN is not set or the tag is a pre-release.
 homebrew_casks:
   - name: nudged
     ids:
       - nudged
-    homepage: https://github.com/rokde/nudged
+    homepage: https://github.com/donePM/nudged
     description: Tray app and hooks for Claude Code
     repository:
-      owner: rokde
+      owner: donePM
       name: homebrew-tap
       token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
     directory: Casks

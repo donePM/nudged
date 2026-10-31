@@ -5,18 +5,20 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/config"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 type Server struct {
 	Registry *Registry
-	// HoldTimeout ends a held request with no output. Zero means 30 min. Set it before Serve.
+	// HoldTimeout ends a held request with no output. Zero means 30 min. Set it before Serve, or use SetHoldTimeout.
 	HoldTimeout time.Duration
 	// LineDeadline limits the time to read the request line. Zero means 5 s. Set it before Serve.
 	LineDeadline time.Duration
@@ -49,7 +51,7 @@ func Listen(path string, reg *Registry) (*Server, error) {
 		ln.Close()
 		return nil, err
 	}
-	return &Server{Registry: reg, ln: ln}, nil
+	return &Server{Registry: reg, ln: ln, queue: queue{changes: make(chan []proto.PendingRequest, 1)}}, nil
 }
 
 // Serve accepts connections until Close. It returns nil after Close.
@@ -77,11 +79,44 @@ func (s *Server) SetPaused(paused bool) {
 	s.queue.setPaused(paused)
 }
 
+// Changes gets a snapshot of the pending requests, oldest first, after each add and each end. An unread snapshot is replaced by the newest one.
+func (s *Server) Changes() <-chan []proto.PendingRequest {
+	return s.queue.changes
+}
+
+// Answer ends the held request id and sends payload verbatim as the hook output. It is the same path as `nudged answer`.
+func (s *Server) Answer(id string, payload json.RawMessage) error {
+	return s.queue.answer(id, payload)
+}
+
+// Dismiss ends the request id with no output. It returns an error for an unknown id.
+func (s *Server) Dismiss(id string) error {
+	return s.queue.endID(id, proto.Reply{OK: true})
+}
+
+// Pending returns the held requests, oldest first.
+func (s *Server) Pending() []proto.PendingRequest {
+	return s.queue.pending()
+}
+
 // Paused reports the pause flag.
 func (s *Server) Paused() bool {
 	s.queue.mu.Lock()
 	defer s.queue.mu.Unlock()
 	return s.queue.paused
+}
+
+// SetHoldTimeout sets HoldTimeout while the server runs. Each new held request uses the new value.
+func (s *Server) SetHoldTimeout(d time.Duration) {
+	s.queue.mu.Lock()
+	defer s.queue.mu.Unlock()
+	s.HoldTimeout = d
+}
+
+func (s *Server) holdTimeout() time.Duration {
+	s.queue.mu.Lock()
+	defer s.queue.mu.Unlock()
+	return s.HoldTimeout
 }
 
 func (s *Server) handle(conn net.Conn) {
@@ -105,7 +140,7 @@ func (s *Server) handle(conn net.Conn) {
 // hold waits for the one reply of h. A timeout or a closed client connection ends h with no output.
 func (s *Server) hold(conn net.Conn, r *bufio.Reader, h *held) proto.Reply {
 	conn.SetDeadline(time.Time{})
-	t := time.AfterFunc(cmp.Or(s.HoldTimeout, 30*time.Minute), func() { s.queue.end(h, proto.Reply{OK: true}) })
+	t := time.AfterFunc(cmp.Or(s.holdTimeout(), 30*time.Minute), func() { s.queue.end(h, proto.Reply{OK: true}) })
 	defer t.Stop()
 	// The read stops at EOF, or when handle closes conn.
 	go func() {
@@ -121,19 +156,30 @@ func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 	case proto.Hook:
 		s.Registry.Hook(req.Event, req.Payload, req.Term, req.TTY)
 		var p struct {
-			SessionID string `json:"session_id"`
-			ToolName  string `json:"tool_name"`
+			SessionID        string            `json:"session_id"`
+			AgentID          string            `json:"agent_id"`
+			ToolName         string            `json:"tool_name"`
+			NotificationType string            `json:"notification_type"`
+			BackgroundTasks  []json.RawMessage `json:"background_tasks"`
 		}
 		json.Unmarshal(req.Payload, &p)
 		// Claude Code can send a Notification while its permission prompt still waits.
+		// Subagents run in parallel, so only an event of the same agent ends a request. Empty means the main agent.
 		if p.SessionID != "" && req.Event != "Notification" {
-			s.queue.endWhere(func(h *held) bool { return h.SessionID == p.SessionID })
+			s.queue.endWhere(func(h *held) bool { return h.SessionID == p.SessionID && h.AgentID == p.AgentID })
 		}
 		if kind := holdKind(req.Event, p.ToolName); kind != "" {
-			h := s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
+			h := s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, AgentID: p.AgentID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
 			if h != nil {
 				return proto.Reply{}, h
 			}
+		}
+		if kind := noticeKind(req.Event, p.NotificationType, len(p.BackgroundTasks)); kind != "" {
+			if kind == proto.Waits {
+				// A new waits notice replaces the older one of the session.
+				s.queue.endWhere(func(h *held) bool { return h.Kind == proto.Waits && h.SessionID == p.SessionID })
+			}
+			s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, AgentID: p.AgentID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
 		}
 	case proto.Statusline:
 		var info proto.StatuslineInfo
@@ -160,4 +206,20 @@ func output(v any) proto.Reply {
 		return proto.Reply{Error: err.Error()}
 	}
 	return proto.Reply{OK: true, Output: out}
+}
+
+// Start listens on socket and applies the config hold timeout. A config error goes to stderr with prefix.
+func Start(socket, prefix string) (*Server, config.Config, error) {
+	srv, err := Listen(socket, NewRegistry())
+	if err != nil {
+		return nil, config.Config{}, err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, prefix, err)
+	}
+	if cfg.TimeoutMinutes > 0 {
+		srv.HoldTimeout = time.Duration(cfg.TimeoutMinutes) * time.Minute
+	}
+	return srv, cfg, nil
 }

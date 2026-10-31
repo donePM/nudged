@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // fakeServer accepts connections on a short socket path. For each one it sends the received line on the channel, then writes reply (if not empty) and closes.

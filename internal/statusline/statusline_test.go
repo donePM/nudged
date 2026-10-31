@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 const fixture = `{"session_id":"abc","cwd":"/tmp/p","model":{"id":"claude-opus","display_name":"Opus"},"effort":"high","context_window":{"used_percentage":41.6}}`

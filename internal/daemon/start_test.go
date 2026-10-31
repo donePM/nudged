@@ -71,8 +71,7 @@ func TestStartConfigErrorPrintsPrefix(t *testing.T) {
 func TestStartListenFails(t *testing.T) {
 	writeCfg(t, "")
 	path := sockPath(t)
-	first := start(t, path, NewRegistry())
-	_ = first
+	start(t, path, NewRegistry())
 	srv, _, err := Start(path, "p:")
 	if err == nil || srv != nil {
 		t.Fatalf("srv=%v err=%v", srv, err)

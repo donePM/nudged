@@ -7,8 +7,8 @@ refreshes it after each merge.
 ## Repo
 - Base: `origin/main`, or the local target branch when it already contains the base
   (local merges not pushed yet). Every job's worktree starts there.
-- Merge target: `main` (local, not pushed)
-- Language / stack: Go 1.27 (module `github.com/rokde/nudged`, stdlib so far); later Wails v3 + Vue 3/TS/Vite frontend (S12)
+- Merge target: `main` (pushed to GitHub after each merge; CI runs there)
+- Language / stack: Go 1.27 (module `github.com/rokde/nudged`; deps: BurntSushi/toml v1.6.0); later Wails v3 + Vue 3/TS/Vite frontend (S12)
 - Install: `go mod download`. Run it once in each new worktree.
 - Test command: `go vet ./... && make test`
 - Lint / format: `gofmt -l . && go vet ./...`
@@ -19,7 +19,8 @@ refreshes it after each merge.
 
 ## Conventions
 - Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`).
-- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>`.
+- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>` (now: config, hookclient, usage, focus). `main.go` has a `usage()` func, so import `internal/usage` as `usagelog`.
+- Unix socket paths on macOS max 104 bytes: tests use `os.MkdirTemp("", "nd")`, not `t.TempDir()`.
 - CI: `.github/workflows/ci.yml` on `macos-latest` runs `go vet` and `go test`.
 - Product requirements live in the
 "nudged – PRD" doc: https://claude.ai/artifact/4FSUSazTkkEPLHN2uLc4HZ

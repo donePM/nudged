@@ -24,7 +24,7 @@ refreshes it after each merge.
 - Unix socket paths on macOS max 104 bytes: tests use `os.MkdirTemp("", "nd")`, not `t.TempDir()`.
 - CI: `.github/workflows/ci.yml` on `macos-latest` runs `go vet`, `go test` and the frontend build (Node 26).
 - Tray app: `internal/app/app.go` (menu, pause path `applyToggle` shared by menu and ⌥⌘P hotkey in `hotkey_darwin.go`, asset handler `assets()`).
-- App windows: `sessions.go` (tray-click session list, badge), `settings.go` (⌘, window, `settings:*` events), `panel_window.go` (380×220 frameless always-on-top panel; events `panel:show`, `panel:ready`, `panel:answer`). Panel kinds register in `panels.go` via `registerPanel` (default view `Generic`); stack order in `stack.go`. Daemon publishes pending snapshots on `Server.Changes()` (buffer 1, newest wins) and takes answers via `Server.Answer(id, payload)`.
+- App windows: `sessions.go` (tray-click session list, badge), `settings.go` (⌘, window, `settings:*` events), `panel_window.go` (380×220 frameless always-on-top panel; events `panel:show`, `panel:ready`, `panel:answer`). Panel kinds register in `panels.go` via `registerPanel` (default view `Generic`); stack order in `stack.go`. Question panel in `question.go` (events `question:answer`, `question:terminal`; reads held requests via `Server.Pending()`). Daemon publishes pending snapshots on `Server.Changes()` (buffer 1, newest wins) and takes answers via `Server.Answer(id, payload)`.
 - Release: `.goreleaser.yaml`, `.github/workflows/release.yml`, `scripts/app-bundle.sh`, `Info.plist`; tests in `release_test.go`.
 - Product requirements live in the
 "nudged – PRD" doc: https://claude.ai/artifact/4FSUSazTkkEPLHN2uLc4HZ

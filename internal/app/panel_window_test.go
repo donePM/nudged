@@ -318,6 +318,9 @@ func TestRunPanelGeneric(t *testing.T) {
 		s := next(t, shows)
 		if (s.Generic != nil) != c.want || c.want && s.Generic.Tool != "Bash" {
 			t.Errorf("%s: generic = %+v", c.mode, s.Generic)
+		}
+	}
+}
 
 func TestAnswerPanel(t *testing.T) {
 	payload := json.RawMessage(`{"permission_suggestions":[{"type":"addRules"}]}`)

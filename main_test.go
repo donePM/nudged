@@ -78,6 +78,45 @@ func TestCIWorkflow(t *testing.T) {
 	}
 }
 
+func TestConfigCommand(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	code := run([]string{"config"})
+	os.Stdout = old
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	out := buf.String()
+	if code != 0 {
+		t.Fatalf("exit code %d", code)
+	}
+	first, _, _ := strings.Cut(out, "\n")
+	if want := filepath.Join(home, ".config", "nudged", "config.toml"); first != want {
+		t.Fatalf("first line %q, want %q", first, want)
+	}
+	if !strings.Contains(out, "timeout_minutes = 30") {
+		t.Fatalf("output %q", out)
+	}
+}
+
+func TestConfigCommandError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, ".config", "nudged", "config.toml")
+	os.MkdirAll(filepath.Dir(path), 0o700)
+	os.WriteFile(path, []byte("mode = \"loud\"\n"), 0o600)
+	var stdout, stderr bytes.Buffer
+	if code := printConfig(&stdout, &stderr); code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "loud") {
+		t.Fatalf("code %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
+	}
+}
+
 func TestHookNoArgs(t *testing.T) {
 	if _, ok := commands["hook"]; !ok {
 		t.Fatal("hook not registered")

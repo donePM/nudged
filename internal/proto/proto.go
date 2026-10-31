@@ -21,6 +21,17 @@ const (
 // Hook is the Request.Kind of a message from `nudged hook`.
 const Hook = "hook"
 
+// Statusline is the Request.Kind of a message from `nudged statusline`. Its Payload is one StatuslineInfo.
+const Statusline = "statusline"
+
+type StatuslineInfo struct {
+	SessionID  string `json:"session_id"`
+	Cwd        string `json:"cwd,omitempty"`
+	Model      string `json:"model,omitempty"`
+	Effort     string `json:"effort,omitempty"`
+	ContextPct int    `json:"context_pct"`
+}
+
 type Request struct {
 	Kind    string          `json:"kind"`
 	Event   string          `json:"event"`

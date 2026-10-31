@@ -8,14 +8,14 @@ refreshes it after each merge.
 - Base: `origin/main`, or the local target branch when it already contains the base
   (local merges not pushed yet). Every job's worktree starts there.
 - Merge target: `main` (pushed to GitHub after each merge; CI runs there)
-- Language / stack: Go 1.27 (module `github.com/rokde/nudged`; deps: BurntSushi/toml v1.6.0); wailsapp/wails/v3 v3.0.0 (tray app in `internal/app`, `nudged` with no args); Vue 3/TS/Vite frontend in `frontend/` (Go package `frontend` embeds `dist/`; Vite output in git-ignored `frontend/dist/app`, a committed placeholder `frontend/dist/index.html` keeps Go tests working without npm). Hash router over `frontend/src/views/*.vue`; Go↔JS only via Wails events (`@wailsio/runtime`). TypeScript pinned ^6 (vue-tsc not ready for 7)
+- Language / stack: Go 1.27 (module `github.com/donepm/nudged`; deps: BurntSushi/toml v1.6.0); wailsapp/wails/v3 v3.0.0 (tray app in `internal/app`, `nudged` with no args); Vue 3/TS/Vite frontend in `frontend/` (Go package `frontend` embeds `dist/`; Vite output in git-ignored `frontend/dist/app`, a committed placeholder `frontend/dist/index.html` keeps Go tests working without npm). Hash router over `frontend/src/views/*.vue`; Go↔JS only via Wails events (`@wailsio/runtime`). TypeScript pinned ^6 (vue-tsc not ready for 7)
 - Install: `go mod download`; for frontend work also `npm --prefix frontend ci`. Run once in each new worktree.
 - Frontend check: `npm --prefix frontend run build`
 - Test command: `go vet ./... && make test`
 - Lint / format: `gofmt -l . && go vet ./...`
 
 ## Sources
-- GitHub issues: rokde/nudged
+- GitHub issues: donePM/nudged
 - Jira: none
 
 ## Conventions

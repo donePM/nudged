@@ -42,7 +42,7 @@ changelog:
   use: github
 
 # Writes Casks/nudged.rb in rokde/homebrew-tap.
-# The step skips when HOMEBREW_TAP_TOKEN is empty.
+# The step skips when HOMEBREW_TAP_TOKEN is not set or the tag is a pre-release.
 homebrew_casks:
   - name: nudged
     ids:
@@ -54,7 +54,7 @@ homebrew_casks:
       name: homebrew-tap
       token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
     directory: Casks
-    skip_upload: '{{ not (isEnvSet "HOMEBREW_TAP_TOKEN") }}'
+    skip_upload: '{{ or (not (isEnvSet "HOMEBREW_TAP_TOKEN")) .Prerelease }}'
     custom_block: |
       app "nudged.app"
     binaries:

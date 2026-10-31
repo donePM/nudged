@@ -58,6 +58,9 @@ function save() {
     <label>Timeout (minutes)
       <input v-model.number="cfg.TimeoutMinutes" type="number" min="1" required>
     </label>
+    <label>Start at login
+      <input v-model="cfg.StartAtLogin" type="checkbox">
+    </label>
     <table>
       <thead>
         <tr><th>Event</th><th>Show</th><th>Sound</th><th></th><th>Hide after (s)</th></tr>

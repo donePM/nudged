@@ -215,6 +215,38 @@ func TestEndRequest(t *testing.T) {
 	waitPending(t, path, 0)
 }
 
+func TestEndRequestSameAgent(t *testing.T) {
+	path := sockPath(t)
+	start(t, path, NewRegistry())
+	for _, agent := range []string{"", `,"agent_id":"a1"`} {
+		_, ch := holdHook(t, path, "PermissionRequest", `{"session_id":"s1","tool_name":"Bash"`+agent+`}`)
+		waitPending(t, path, 1)
+		hook(t, path, "PostToolUse", `{"session_id":"s1"`+agent+`}`)
+		reply(t, ch, `{"ok":true}`)
+		waitPending(t, path, 0)
+	}
+}
+
+func TestEndRequestOtherAgent(t *testing.T) {
+	path := sockPath(t)
+	start(t, path, NewRegistry())
+	_, ch := holdHook(t, path, "PermissionRequest", `{"session_id":"s1","tool_name":"Bash","agent_id":"a1"}`)
+	waitPending(t, path, 1)
+	hook(t, path, "PostToolUse", `{"session_id":"s1","agent_id":"b2"}`)
+	hook(t, path, "PostToolUse", `{"session_id":"s1"}`)
+	if list := waitPending(t, path, 1); list[0].AgentID != "a1" {
+		t.Fatalf("agent id %q", list[0].AgentID)
+	}
+	noReply(t, ch, 50*time.Millisecond)
+
+	_, ch2 := holdHook(t, path, "PermissionRequest", perm1)
+	waitPending(t, path, 2)
+	hook(t, path, "PostToolUse", `{"session_id":"s1","agent_id":"a1"}`)
+	reply(t, ch, `{"ok":true}`)
+	waitPending(t, path, 1)
+	noReply(t, ch2, 50*time.Millisecond)
+}
+
 func TestPause(t *testing.T) {
 	path := sockPath(t)
 	srv := start(t, path, NewRegistry())

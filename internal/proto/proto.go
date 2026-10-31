@@ -39,6 +39,7 @@ type PendingRequest struct {
 	ID        string          `json:"id"`
 	Kind      string          `json:"kind"`
 	SessionID string          `json:"session_id"`
+	AgentID   string          `json:"agent_id,omitempty"`
 	Event     string          `json:"event"`
 	Payload   json.RawMessage `json:"payload"`
 	Term      string          `json:"term"`

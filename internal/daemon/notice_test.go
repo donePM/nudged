@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/rokde/nudged/internal/proto"
@@ -84,4 +85,24 @@ func TestDismiss(t *testing.T) {
 	waitSnap(t, srv, "2")
 	hook(t, path, "UserPromptSubmit", `{"session_id":"s1"}`)
 	waitSnap(t, srv)
+}
+
+func TestWaitsReplacesOlder(t *testing.T) {
+	path := sockPath(t)
+	srv := start(t, path, NewRegistry())
+	idle := func(session string) string {
+		return `{"session_id":"` + session + `","notification_type":"idle_prompt"}`
+	}
+	noticeHook(t, path, "Stop", `{"session_id":"s1"}`)
+	noticeHook(t, path, "Notification", idle("s1"))
+	noticeHook(t, path, "Notification", idle("s2"))
+	noticeHook(t, path, "Notification", idle("s1"))
+	var got [][3]string
+	for _, p := range srv.Pending() {
+		got = append(got, [3]string{p.ID, p.Kind, p.SessionID})
+	}
+	want := [][3]string{{"1", proto.Done, "s1"}, {"3", proto.Waits, "s2"}, {"4", proto.Waits, "s1"}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("pending %v, want %v", got, want)
+	}
 }

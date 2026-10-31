@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/rokde/nudged/internal/config"
@@ -143,10 +144,11 @@ func focusRequest(cur *panelShow, id string, dismiss func(string)) {
 
 // runPanel keeps the last snapshot and the current config until changes closes.
 // For each snapshot and each config, it calls show with the snapshot, the top request (nil hides the panel) and the current timeout.
-// For each new notice with a HideSeconds above 0, it calls dismiss with the notice id after that time.
+// When a notice with a HideSeconds above 0 becomes the top request, it calls dismiss with the notice id after that time, once for each id.
 func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, dismiss func(string), show func([]proto.PendingRequest, *panelShow, int)) {
 	var list []proto.PendingRequest
 	var seen map[string]bool
+	timed := map[string]bool{}
 	for {
 		select {
 		case l, ok := <-changes:
@@ -154,11 +156,6 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 				return
 			}
 			list = l
-			for _, p := range list {
-				if ev, _ := event(p.Kind, cfg); notice(p.Kind) && !seen[p.ID] && ev.HideSeconds > 0 {
-					time.AfterFunc(time.Duration(ev.HideSeconds)*hideUnit, func() { dismiss(p.ID) })
-				}
-			}
 			var names []string
 			names, seen = sounds(seen, list, cfg)
 			for _, name := range names {
@@ -173,6 +170,15 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 		var s *panelShow
 		if req, others, ok := top(list, cfg); ok {
 			s = &panelShow{Request: req, Others: others, Mode: cfg.Mode}
+			if ev, _ := event(req.Kind, cfg); notice(req.Kind) && !timed[req.ID] && ev.HideSeconds > 0 {
+				timed[req.ID] = true
+				time.AfterFunc(time.Duration(ev.HideSeconds)*hideUnit, func() { dismiss(req.ID) })
+			}
+		}
+		for id := range timed {
+			if !slices.ContainsFunc(list, func(p proto.PendingRequest) bool { return p.ID == id }) {
+				delete(timed, id)
+			}
 		}
 		show(list, s, cfg.TimeoutMinutes)
 	}

@@ -171,6 +171,10 @@ func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 			}
 		}
 		if kind := noticeKind(req.Event, p.NotificationType, len(p.BackgroundTasks)); kind != "" {
+			if kind == proto.Waits {
+				// A new waits notice replaces the older one of the session.
+				s.queue.endWhere(func(h *held) bool { return h.Kind == proto.Waits && h.SessionID == p.SessionID })
+			}
 			s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
 		}
 	case proto.Statusline:

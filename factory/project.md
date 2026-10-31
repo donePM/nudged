@@ -19,7 +19,7 @@ refreshes it after each merge.
 
 ## Conventions
 - Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`).
-- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>` (now: config, hookclient, usage, focus). `main.go` has a `usage()` func, so import `internal/usage` as `usagelog`.
+- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>` (now: config, daemon, focus, hookclient, sound, statusline, usage). `main.go` has a `usage()` func, so import `internal/usage` as `usagelog`.
 - Unix socket paths on macOS max 104 bytes: tests use `os.MkdirTemp("", "nd")`, not `t.TempDir()`.
 - CI: `.github/workflows/ci.yml` on `macos-latest` runs `go vet` and `go test`.
 - Product requirements live in the

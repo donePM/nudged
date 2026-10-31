@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -35,7 +36,7 @@ func TestInfoPlist(t *testing.T) {
 	for key, want := range map[string]string{
 		"LSUIElement":         "true",
 		"CFBundleExecutable":  "nudged",
-		"CFBundleIdentifier":  "de.rokde.nudged",
+		"CFBundleIdentifier":  "de.donepm.nudged",
 		"CFBundlePackageType": "APPL",
 	} {
 		if got := plistValue(t, key, file); got != want {
@@ -85,9 +86,13 @@ func fileContains(t *testing.T, file string, want ...string) string {
 }
 
 func TestGoreleaserConfig(t *testing.T) {
-	fileContains(t, ".goreleaser.yaml",
+	s := fileContains(t, ".goreleaser.yaml",
 		"version: 2", "CGO_ENABLED=1", "arm64", "amd64", "universal_binaries", "main.version",
 		"donePM/homebrew-tap", "owner: donePM", "name: homebrew-tap", "HOMEBREW_TAP_TOKEN", "postflight", "com.apple.quarantine")
+	skip := regexp.MustCompile(`(?m)^\s*skip_upload:.*$`).FindString(s)
+	if !strings.Contains(skip, "HOMEBREW_TAP_TOKEN") || !strings.Contains(skip, ".Prerelease") {
+		t.Errorf("skip_upload line %q must check HOMEBREW_TAP_TOKEN and .Prerelease", skip)
+	}
 }
 
 func TestReleaseWorkflow(t *testing.T) {
@@ -97,6 +102,13 @@ func TestReleaseWorkflow(t *testing.T) {
 	build := strings.Index(s, "npm --prefix frontend run build")
 	if guard < 0 || build < 0 || guard > build {
 		t.Errorf("frontend guard at %d, frontend build at %d", guard, build)
+	}
+	checkout := regexp.MustCompile(`(?m)^\s*- uses: actions/checkout@.*\n((?:\s+[^-\s].*\n)*)`).FindStringSubmatch(s)
+	if checkout == nil || !regexp.MustCompile(`(?m)^\s+persist-credentials: false\s*$`).MatchString(checkout[1]) {
+		t.Errorf("actions/checkout step has no persist-credentials: false")
+	}
+	if !regexp.MustCompile(`goreleaser/goreleaser-action@[0-9a-f]{40} # v\d+`).MatchString(s) {
+		t.Errorf("goreleaser/goreleaser-action is not pinned to a commit SHA with a # v<version> comment")
 	}
 }
 

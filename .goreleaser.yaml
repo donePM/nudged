@@ -8,6 +8,10 @@ builds:
     binary: nudged
     env:
       - CGO_ENABLED=1
+      # Matches LSMinimumSystemVersion in build/darwin/Info.plist.
+      - MACOSX_DEPLOYMENT_TARGET=13.0
+      - CGO_CFLAGS=-mmacosx-version-min=13.0
+      - CGO_LDFLAGS=-mmacosx-version-min=13.0
     goos:
       - darwin
     goarch:
@@ -42,7 +46,7 @@ changelog:
   use: github
 
 # Writes Casks/nudged.rb in donePM/homebrew-tap.
-# The step skips when HOMEBREW_TAP_TOKEN is empty.
+# The step skips when HOMEBREW_TAP_TOKEN is not set or the tag is a pre-release.
 homebrew_casks:
   - name: nudged
     ids:
@@ -54,7 +58,7 @@ homebrew_casks:
       name: homebrew-tap
       token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
     directory: Casks
-    skip_upload: '{{ not (isEnvSet "HOMEBREW_TAP_TOKEN") }}'
+    skip_upload: '{{ or (not (isEnvSet "HOMEBREW_TAP_TOKEN")) (ne .Prerelease "") }}'
     custom_block: |
       app "nudged.app"
     binaries:

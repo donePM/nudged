@@ -5,7 +5,7 @@
 	<key>CFBundleExecutable</key>
 	<string>nudged</string>
 	<key>CFBundleIdentifier</key>
-	<string>de.rokde.nudged</string>
+	<string>de.donepm.nudged</string>
 	<key>CFBundleName</key>
 	<string>nudged</string>
 	<key>CFBundlePackageType</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleVersion</key>
 	<string>0.0.0</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>12.0</string>
+	<string>13.0</string>
 	<key>LSUIElement</key>
 	<true/>
 </dict>

@@ -196,7 +196,7 @@ func TestSaveSettingsStartAtLogin(t *testing.T) {
 	old := executable
 	executable = func() (string, error) { return link, nil }
 	t.Cleanup(func() { executable = old })
-	plist := filepath.Join(os.Getenv("HOME"), "Library", "LaunchAgents", "de.rokde.nudged.plist")
+	plist := filepath.Join(os.Getenv("HOME"), "Library", "LaunchAgents", "de.donepm.nudged.plist")
 
 	for _, on := range []bool{true, false} {
 		cfg := config.Default()

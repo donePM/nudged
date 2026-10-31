@@ -19,7 +19,7 @@ type doc struct {
 
 func readPlist(t *testing.T) doc {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), "Library", "LaunchAgents", "de.rokde.nudged.plist"))
+	data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), "Library", "LaunchAgents", "de.donepm.nudged.plist"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestEnable(t *testing.T) {
 	if want := []string{"Label", "ProgramArguments", "RunAtLoad"}; !slices.Equal(d.Dict.Keys, want) {
 		t.Errorf("keys %v", d.Dict.Keys)
 	}
-	if !slices.Equal(d.Dict.Strings, []string{"de.rokde.nudged"}) {
+	if !slices.Equal(d.Dict.Strings, []string{"de.donepm.nudged"}) {
 		t.Errorf("label %v", d.Dict.Strings)
 	}
 	if !slices.Equal(d.Dict.Args, []string{"/x/nudged"}) {

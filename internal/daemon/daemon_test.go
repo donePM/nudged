@@ -213,3 +213,19 @@ func TestSortOrder(t *testing.T) {
 		t.Fatalf("session %s", b)
 	}
 }
+
+func TestPromptStarted(t *testing.T) {
+	reg := NewRegistry()
+	clock := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	reg.now = func() time.Time { return clock }
+	p := []byte(`{"session_id":"s1"}`)
+	reg.Hook("UserPromptSubmit", p, "", "")
+	prompt := clock
+	for _, e := range []string{"PostToolUse", "Stop"} {
+		clock = clock.Add(time.Minute)
+		reg.Hook(e, p, "", "")
+		if list := reg.List(); len(list) != 1 || !list[0].PromptStarted.Equal(prompt) {
+			t.Fatalf("%s: sessions %+v", e, list)
+		}
+	}
+}

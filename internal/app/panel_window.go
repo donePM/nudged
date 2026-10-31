@@ -20,6 +20,8 @@ type panelShow struct {
 	Mode    string               `json:"mode"` // "answer" or "notify"
 	// Permission is set when Request.Kind is proto.Permission.
 	Permission *permissionData `json:"permission,omitempty"`
+	// Notice is set when Request.Kind is a notice kind.
+	Notice *noticeData `json:"notice,omitempty"`
 }
 
 type panelAnswer struct {
@@ -114,6 +116,10 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		if show != nil && show.Request.Kind == proto.Permission {
 			p := permissionPanel(show.Request, srv.Registry.List(), timeoutMinutes)
 			show.Permission = &p
+		}
+		if show != nil && notice(show.Request.Kind) {
+			n := noticePanel(show.Request, srv.Registry.List())
+			show.Notice = &n
 		}
 		application.InvokeSync(func() {
 			held = list

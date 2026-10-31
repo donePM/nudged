@@ -53,7 +53,7 @@ func Parse(data []byte) (proto.StatuslineInfo, error) {
 		Model     struct {
 			DisplayName string `json:"display_name"`
 		} `json:"model"`
-		Effort        string `json:"effort"`
+		Effort        json.RawMessage `json:"effort"`
 		ContextWindow struct {
 			UsedPercentage float64 `json:"used_percentage"`
 		} `json:"context_window"`
@@ -63,9 +63,22 @@ func Parse(data []byte) (proto.StatuslineInfo, error) {
 		SessionID:  in.SessionID,
 		Cwd:        in.Cwd,
 		Model:      in.Model.DisplayName,
-		Effort:     in.Effort,
+		Effort:     effort(in.Effort),
 		ContextPct: int(math.Round(in.ContextWindow.UsedPercentage)),
 	}, err
+}
+
+// effort reads the effort as {"level": "high"} (Claude Code 2.1.3xx) or as a plain string (older versions).
+func effort(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var o struct {
+		Level string `json:"level"`
+	}
+	json.Unmarshal(raw, &o)
+	return o.Level
 }
 
 func send(socket string, info proto.StatuslineInfo) {

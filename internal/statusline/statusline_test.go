@@ -32,6 +32,11 @@ func TestParse(t *testing.T) {
 	if err != nil || got != want {
 		t.Fatalf("got %+v, %v", got, err)
 	}
+	// Claude Code 2.1.316 sends the effort as an object and a null percentage before the first answer.
+	got, err = Parse([]byte(`{"session_id":"abc","cwd":"/tmp/p","model":{"display_name":"Opus"},"effort":{"level":"xhigh"},"context_window":{"used_percentage":null}}`))
+	if err != nil || got.Effort != "xhigh" || got.Model != "Opus" || got.ContextPct != 0 {
+		t.Fatalf("effort object: %+v, %v", got, err)
+	}
 	got, err = Parse([]byte(`{"session_id":"abc","model":{"display_name":"Opus"}}`))
 	if err != nil || got.ContextPct != 0 || got.Effort != "" {
 		t.Fatalf("got %+v, %v", got, err)

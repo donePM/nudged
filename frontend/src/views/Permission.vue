@@ -27,7 +27,8 @@ function answer(behavior: 'allow' | 'deny' | 'always', suggestion = 0) {
 }
 function key(e: KeyboardEvent) {
   if (e.key !== 'Enter' && e.key !== 'Escape') return
-  e.preventDefault() // a focused button must not also get the Enter click
+  if (e.key === 'Enter' && (e.target as HTMLElement).closest('button')) return // the focused button acts
+  e.preventDefault()
   if (!e.repeat) answer(e.key === 'Enter' ? 'allow' : 'deny')
 }
 
@@ -56,16 +57,17 @@ onUnmounted(() => {
       <span v-if="others > 0">+{{ others }} waiting</span>
       <span class="time">waits {{ waited }} · {{ left }} left</span>
     </header>
-    <p v-if="p.description" class="desc">{{ p.description }}</p>
+    <p v-if="p.description" class="desc" :title="p.description">{{ p.description }}</p>
     <pre>{{ p.command || p.params }}</pre>
     <dl>
       <dt>Project</dt><dd :title="p.path">{{ p.project }} <small>{{ p.path }}</small></dd>
       <dt>Terminal</dt><dd>{{ p.term }} {{ p.tty }}</dd>
       <dt>Session</dt><dd :title="p.session">{{ p.session }}<template v-if="p.model"> · {{ p.model }}</template></dd>
     </dl>
+    <div v-if="p.suggestions.length" class="always">
+      <button v-for="(s, i) in p.suggestions" :key="i" :title="s" @click="answer('always', i)">{{ s }}</button>
+    </div>
     <footer>
-      <button v-for="(s, i) in p.suggestions" :key="i" class="always" :title="s" @click="answer('always', i)">{{ s }}</button>
-      <span class="fill"></span>
       <button @click="answer('deny')">Deny <kbd>esc</kbd></button>
       <button class="primary" @click="answer('allow')">Allow <kbd>⏎</kbd></button>
     </footer>
@@ -74,21 +76,21 @@ onUnmounted(() => {
 
 <style>
 :root { color-scheme: light dark; }
-body { margin: 0; font: 12px -apple-system, system-ui, sans-serif; background: #f6f6f6; color: #1d1d1f; }
+body { margin: 0; overflow: hidden; font: 12px -apple-system, system-ui, sans-serif; background: #f6f6f6; color: #1d1d1f; }
 main { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; gap: 5px; }
 header { display: flex; gap: 8px; align-items: baseline; }
 header span { opacity: 0.7; }
 header .time { margin-left: auto; font-variant-numeric: tabular-nums; }
-.desc { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-pre { flex: 1; min-height: 2em; margin: 0; overflow: auto; font-size: 11px; background: rgba(0, 0, 0, 0.05); padding: 6px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; }
-dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; margin: 0; font-size: 11px; }
+.desc { flex-shrink: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+pre { flex: 1; min-height: 1.5em; margin: 0; overflow: auto; font-size: 11px; background: rgba(0, 0, 0, 0.05); padding: 6px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; }
+dl { flex-shrink: 0; display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; margin: 0; font-size: 11px; }
 dt { opacity: 0.6; }
 dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 small { opacity: 0.6; }
-footer { display: flex; flex-wrap: wrap; gap: 6px; }
-.fill { flex: 1; }
+.always { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; max-height: 41px; overflow-y: auto; }
+footer { display: flex; justify-content: flex-end; gap: 6px; flex-shrink: 0; }
 button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.2); background: #fff; color: inherit; }
-button.always { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.always button { padding: 2px 8px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
 button.primary { background: #0a84ff; border-color: #0a84ff; color: #fff; }
 kbd { font: inherit; opacity: 0.6; }
 @media (prefers-color-scheme: dark) {

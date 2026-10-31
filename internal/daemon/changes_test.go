@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/hookclient"
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/hookclient"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // waitSnap reads snapshots until one has the request ids want, in this order.

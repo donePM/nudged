@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func fixtureRequest(t *testing.T) proto.PendingRequest {

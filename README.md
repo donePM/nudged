@@ -9,7 +9,7 @@ nudged is not "Nudge", the macOS admin tool that makes users install OS updates.
 ## Install
 
 ```sh
-brew install --cask rokde/tap/nudged
+brew install --cask donepm/tap/nudged
 ```
 
 The cask installs `/Applications/nudged.app` and links `nudged` onto your PATH.

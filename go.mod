@@ -1,4 +1,4 @@
-module github.com/rokde/nudged
+module github.com/donepm/nudged
 
 go 1.27
 

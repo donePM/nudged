@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func TestPrintSessions(t *testing.T) {

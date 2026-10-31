@@ -65,13 +65,13 @@ Decision: S10 runs `tell application "Ghostty" to focus (first terminal whose tt
 
 Answer: partly. The docs say yes for a third-party tap. We did not test an install, because the tap does not exist yet.
 Evidence: Homebrew Cask Cookbook (https://github.com/Homebrew/brew/blob/main/docs/Cask-Cookbook.md, Homebrew 7.0.11 installed): "Casks in official Homebrew taps must use these structured stanzas; legacy Ruby flight blocks are rejected. The legacy forms remain available temporarily for third-party tap compatibility." The structured `postflight_steps` block has a `run` step ("run one executable with literal arguments"). The steps run in a sandbox that permits writes to the app directory. GoReleaser docs (https://goreleaser.com/customization/publish/homebrew_casks/, "Signing and Notarizing") show `hooks.post.install_steps` with `run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", …]` for unsigned apps.
-Decision: S20 uses the GoReleaser `homebrew_casks` hook with a `run "/usr/bin/xattr"` step on the installed `nudged.app`, not a legacy Ruby `postflight` block. The README also shows `xattr -d com.apple.quarantine` (PRD fallback), because the sandbox can block the step. S20 tests a real install after the human creates `rokde/homebrew-tap`.
+Decision: S20 uses the GoReleaser `homebrew_casks` hook with a `run "/usr/bin/xattr"` step on the installed `nudged.app`, not a legacy Ruby `postflight` block. The README also shows `xattr -d com.apple.quarantine` (PRD fallback), because the sandbox can block the step. S20 tests a real install after the human creates `donePM/homebrew-tap`.
 
 ## Q9 Is the name `nudged` free on GitHub and Homebrew?
 
 Answer: yes.
-Evidence: `brew info nudged`: "No available formula with the name "nudged"". `brew info --cask nudged`: "Cask 'nudged' is unavailable: No Cask with this name exists." `brew search nudged`: only `nuget`, `nuage`, `nudge` (the cask `nudge` is "Nudge", "Application for enforcing OS updates", macadmins). `gh search repos nudged`: `axelpale/nudged` and `axelpale/nudged-py` (a 2D point transform library), no macOS app and no Claude Code tool. `gh api repos/rokde/nudged`: the repo exists and is ours. `gh api repos/rokde/homebrew-tap`: 404.
-Decision: Keep the name `nudged` and the cask token `nudged` in `rokde/homebrew-tap`. The README names the difference to the admin tool "Nudge". The PRD fallback (other name) is not necessary.
+Evidence: `brew info nudged`: "No available formula with the name "nudged"". `brew info --cask nudged`: "Cask 'nudged' is unavailable: No Cask with this name exists." `brew search nudged`: only `nuget`, `nuage`, `nudge` (the cask `nudge` is "Nudge", "Application for enforcing OS updates", macadmins). `gh search repos nudged`: `axelpale/nudged` and `axelpale/nudged-py` (a 2D point transform library), no macOS app and no Claude Code tool. `gh api repos/rokde/nudged`: the repo exists and is ours. `gh api repos/donePM/homebrew-tap`: 404.
+Decision: Keep the name `nudged` and the cask token `nudged` in `donePM/homebrew-tap`. The README names the difference to the admin tool "Nudge". The PRD fallback (other name) is not necessary.
 
 ## Other findings
 

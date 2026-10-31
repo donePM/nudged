@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func fixture(t *testing.T, event string) string {

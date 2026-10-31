@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // holdKind returns the pending kind of a hook event, or "" when the daemon replies at once.

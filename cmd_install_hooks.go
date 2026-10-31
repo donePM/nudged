@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rokde/nudged/internal/installer"
+	"github.com/donepm/nudged/internal/installer"
 )
 
 func init() {

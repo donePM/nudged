@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func init() { registerPanel(proto.Permission, "Permission") }

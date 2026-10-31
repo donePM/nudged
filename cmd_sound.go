@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rokde/nudged/internal/sound"
+	"github.com/donepm/nudged/internal/sound"
 )
 
 func init() {

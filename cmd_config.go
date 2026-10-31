@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
-	"github.com/rokde/nudged/internal/config"
+	"github.com/donepm/nudged/internal/config"
 )
 
 func init() {

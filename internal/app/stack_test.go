@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rokde/nudged/internal/config"
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/config"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func TestTop(t *testing.T) {

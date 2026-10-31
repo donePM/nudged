@@ -4,7 +4,7 @@ import (
 	"flag"
 	"io"
 
-	"github.com/rokde/nudged/internal/focus"
+	"github.com/donepm/nudged/internal/focus"
 )
 
 func init() {

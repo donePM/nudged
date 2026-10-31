@@ -38,9 +38,6 @@ var registerHotkey = func(onPress func()) error { return errors.New("hotkey not 
 
 var logw io.Writer = os.Stderr
 
-// shortcut: no settings window, S19 sets this func
-var openSettings = func() {}
-
 // startDaemon listens on socket and serves in the background. The channel gets the error of Serve.
 func startDaemon(socket string) (*daemon.Server, <-chan error, error) {
 	srv, err := daemon.Listen(socket, daemon.NewRegistry())
@@ -131,7 +128,7 @@ func run(socket string) int {
 	}
 	actions := []func(*application.Context){
 		func(*application.Context) { pause() },
-		func(*application.Context) { openSettings() },
+		func(*application.Context) { openSettings(app, srv) },
 		func(*application.Context) { quit(srv, app.Quit) },
 	}
 	for i, it := range menuItems {

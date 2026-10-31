@@ -184,6 +184,15 @@ func TestHoldTimeout(t *testing.T) {
 	waitPending(t, path, 0)
 }
 
+func TestSetHoldTimeout(t *testing.T) {
+	path := sockPath(t)
+	srv := startWith(t, path, time.Hour, 50*time.Millisecond)
+	srv.SetHoldTimeout(100 * time.Millisecond)
+	_, ch := holdHook(t, path, "PermissionRequest", perm1)
+	reply(t, ch, `{"ok":true}`)
+	waitPending(t, path, 0)
+}
+
 func TestEndRequest(t *testing.T) {
 	path := sockPath(t)
 	start(t, path, NewRegistry())

@@ -104,6 +104,10 @@ const dev = computed(() => !/^\d+\.\d+\.\d+$/.test(upd.value.version))
   <div class="win">
     <aside class="side">
       <div class="drag top" />
+      <div class="drag app">
+        <div class="icon small" aria-hidden="true"><span /></div>
+        <span>nudged</span>
+      </div>
       <nav aria-label="Settings pages">
         <button v-for="p in pages" :key="p" type="button" class="nav" :aria-current="page === p ? 'page' : undefined"
           @click="page = p">
@@ -247,6 +251,9 @@ body { background: var(--win); }
 .win { display: flex; height: 100vh; overflow: hidden; }
 .side { width: 180px; flex: none; background: var(--side); box-shadow: inset -0.5px 0 0 var(--sep); display: flex; flex-direction: column; }
 .top { height: 52px; flex: none; }
+.app { display: flex; align-items: center; gap: 8px; padding: 0 20px 12px; font-size: 14px; font-weight: 700; }
+.icon.small { width: 22px; height: 22px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
+.icon.small span { width: 7px; height: 7px; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.14); }
 nav { display: grid; gap: 2px; padding: 0 10px; }
 .nav { display: flex; align-items: center; justify-content: space-between; border: 0; background: none; color: var(--ink);
   font: 13px var(--sys); text-align: left; padding: 5px 10px; border-radius: 6px; cursor: pointer; }

@@ -120,7 +120,7 @@ const focus = (id: string) => Events.Emit('sessions:focus', id)
           <svg v-else viewBox="0 0 16 16"><rect x="4" y="3.5" width="2.6" height="9" rx="1" fill="currentColor" /><rect x="9.4" y="3.5" width="2.6" height="9" rx="1" fill="currentColor" /></svg>
         </button>
         <button type="button" class="ico" title="Settings" aria-label="Settings" @click="Events.Emit('sessions:settings')">
-          <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8h4" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M17 16h4" /><path d="M19 12V3" /><path d="M19 21v-5" /><path d="M3 14h4" /><path d="M5 10V3" /><path d="M5 21v-7" /></svg>
         </button>
       </span>
     </footer>

@@ -10,6 +10,11 @@ permissions:
 jobs:
   test:
     runs-on: macos-latest
+    # Same target as .goreleaser.yaml and LSMinimumSystemVersion.
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+      CGO_CFLAGS: -mmacosx-version-min=13.0
+      CGO_LDFLAGS: -mmacosx-version-min=13.0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -93,6 +93,12 @@ func TestGoreleaserConfig(t *testing.T) {
 	if !strings.Contains(skip, "HOMEBREW_TAP_TOKEN") || !strings.Contains(skip, ".Prerelease") {
 		t.Errorf("skip_upload line %q must check HOMEBREW_TAP_TOKEN and .Prerelease", skip)
 	}
+	// GoReleaser 2.19 has no envOrDefault or isEnvSet; goreleaser check does not catch it.
+	for _, f := range []string{"envOrDefault", "isEnvSet"} {
+		if strings.Contains(s, f) {
+			t.Errorf(".goreleaser.yaml uses template function %s, which GoReleaser does not define", f)
+		}
+	}
 }
 
 func TestReleaseWorkflow(t *testing.T) {

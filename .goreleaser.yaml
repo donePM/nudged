@@ -56,9 +56,9 @@ homebrew_casks:
     repository:
       owner: donePM
       name: homebrew-tap
-      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
     directory: Casks
-    skip_upload: '{{ or (not (isEnvSet "HOMEBREW_TAP_TOKEN")) (ne .Prerelease "") }}'
+    skip_upload: '{{ or (eq (index .Env "HOMEBREW_TAP_TOKEN") "") (ne .Prerelease "") }}'
     custom_block: |
       app "nudged.app"
     binaries:

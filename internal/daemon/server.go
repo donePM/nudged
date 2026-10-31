@@ -16,7 +16,7 @@ import (
 
 type Server struct {
 	Registry *Registry
-	// HoldTimeout ends a held request with no output. Zero means 30 min. Set it before Serve.
+	// HoldTimeout ends a held request with no output. Zero means 30 min. Set it before Serve, or use SetHoldTimeout.
 	HoldTimeout time.Duration
 	// LineDeadline limits the time to read the request line. Zero means 5 s. Set it before Serve.
 	LineDeadline time.Duration
@@ -94,6 +94,19 @@ func (s *Server) Paused() bool {
 	return s.queue.paused
 }
 
+// SetHoldTimeout sets HoldTimeout while the server runs. Each new held request uses the new value.
+func (s *Server) SetHoldTimeout(d time.Duration) {
+	s.queue.mu.Lock()
+	defer s.queue.mu.Unlock()
+	s.HoldTimeout = d
+}
+
+func (s *Server) holdTimeout() time.Duration {
+	s.queue.mu.Lock()
+	defer s.queue.mu.Unlock()
+	return s.HoldTimeout
+}
+
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	// A client that sends no line must not hold the goroutine open.
@@ -115,7 +128,7 @@ func (s *Server) handle(conn net.Conn) {
 // hold waits for the one reply of h. A timeout or a closed client connection ends h with no output.
 func (s *Server) hold(conn net.Conn, r *bufio.Reader, h *held) proto.Reply {
 	conn.SetDeadline(time.Time{})
-	t := time.AfterFunc(cmp.Or(s.HoldTimeout, 30*time.Minute), func() { s.queue.end(h, proto.Reply{OK: true}) })
+	t := time.AfterFunc(cmp.Or(s.holdTimeout(), 30*time.Minute), func() { s.queue.end(h, proto.Reply{OK: true}) })
 	defer t.Stop()
 	// The read stops at EOF, or when handle closes conn.
 	go func() {

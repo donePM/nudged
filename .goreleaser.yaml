@@ -8,6 +8,10 @@ builds:
     binary: nudged
     env:
       - CGO_ENABLED=1
+      # Matches LSMinimumSystemVersion in build/darwin/Info.plist.
+      - MACOSX_DEPLOYMENT_TARGET=13.0
+      - CGO_CFLAGS=-mmacosx-version-min=13.0
+      - CGO_LDFLAGS=-mmacosx-version-min=13.0
     goos:
       - darwin
     goarch:

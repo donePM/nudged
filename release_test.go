@@ -36,7 +36,7 @@ func TestInfoPlist(t *testing.T) {
 	for key, want := range map[string]string{
 		"LSUIElement":         "true",
 		"CFBundleExecutable":  "nudged",
-		"CFBundleIdentifier":  "de.rokde.nudged",
+		"CFBundleIdentifier":  "de.donepm.nudged",
 		"CFBundlePackageType": "APPL",
 	} {
 		if got := plistValue(t, key, file); got != want {

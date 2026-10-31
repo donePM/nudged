@@ -5,7 +5,7 @@
 	<key>CFBundleExecutable</key>
 	<string>nudged</string>
 	<key>CFBundleIdentifier</key>
-	<string>de.rokde.nudged</string>
+	<string>de.donepm.nudged</string>
 	<key>CFBundleName</key>
 	<string>nudged</string>
 	<key>CFBundlePackageType</key>

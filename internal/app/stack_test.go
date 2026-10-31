@@ -82,3 +82,35 @@ func TestPanelView(t *testing.T) {
 		}
 	}
 }
+
+func TestPanelViewNotice(t *testing.T) {
+	for _, kind := range []string{proto.Done, proto.Waits} {
+		for _, mode := range []string{"answer", "notify"} {
+			if v := panelView(&panelShow{Request: proto.PendingRequest{Kind: kind}, Mode: mode}); v != viewFor(kind) {
+				t.Errorf("%s %s: %q", kind, mode, v)
+			}
+		}
+	}
+	if v := panelView(&panelShow{Request: proto.PendingRequest{Kind: proto.Permission}, Mode: "notify"}); v != "Generic" {
+		t.Errorf("permission notify: %q", v)
+	}
+}
+
+func TestFocusTarget(t *testing.T) {
+	req := proto.PendingRequest{ID: "1", TTY: "/dev/ttys003", Term: "iTerm.app"}
+	for _, kind := range []string{proto.Done, proto.Waits} {
+		for _, mode := range []string{"answer", "notify"} {
+			req.Kind = kind
+			if tty, term, ok := focusTarget(&panelShow{Request: req, Mode: mode}, "1"); !ok || tty != req.TTY || term != req.Term {
+				t.Errorf("%s %s: %q %q %v", kind, mode, tty, term, ok)
+			}
+			if _, _, ok := focusTarget(&panelShow{Request: req, Mode: mode}, "2"); ok {
+				t.Errorf("%s %s other id: ok", kind, mode)
+			}
+		}
+	}
+	req.Kind = proto.Permission
+	if _, _, ok := focusTarget(&panelShow{Request: req, Mode: "answer"}, "1"); ok {
+		t.Error("permission answer: ok")
+	}
+}

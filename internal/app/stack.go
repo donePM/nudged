@@ -44,17 +44,20 @@ func sounds(seen map[string]bool, list []proto.PendingRequest, cfg config.Config
 	return names, ids
 }
 
-// focusTarget returns the TTY and Term of the current request cur, if cur is in notify mode and has the ID id.
+// notice reports whether kind is a notice kind. A notice does not hold its hook.
+func notice(kind string) bool { return kind == proto.Done || kind == proto.Waits }
+
+// focusTarget returns the TTY and Term of the current request cur, if cur has the ID id and is a notice or in notify mode.
 func focusTarget(cur *panelShow, id string) (tty, term string, ok bool) {
-	if cur == nil || cur.Mode != "notify" || cur.Request.ID != id {
+	if cur == nil || cur.Request.ID != id || (cur.Mode != "notify" && !notice(cur.Request.Kind)) {
 		return "", "", false
 	}
 	return cur.Request.TTY, cur.Request.Term, true
 }
 
-// panelView returns the view of s. Notify mode uses Generic for each kind: it has no answer controls, and a click sends panel:focus.
+// panelView returns the view of s. Notify mode uses Generic for each kind except notices: it has no answer controls, and a click sends panel:focus.
 func panelView(s *panelShow) string {
-	if s.Mode == "notify" {
+	if s.Mode == "notify" && !notice(s.Request.Kind) {
 		return "Generic"
 	}
 	return viewFor(s.Request.Kind)

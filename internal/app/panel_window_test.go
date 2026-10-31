@@ -17,7 +17,7 @@ func loop(t *testing.T, configs chan config.Config, cfg config.Config) (chan []p
 	changes, shows := make(chan []proto.PendingRequest), make(chan *panelShow, 1)
 	done := make(chan struct{})
 	go func() {
-		runPanel(changes, configs, cfg, func(_ []proto.PendingRequest, s *panelShow, _ int) { shows <- s })
+		runPanel(changes, configs, cfg, func(string) {}, func(_ []proto.PendingRequest, s *panelShow, _ int) { shows <- s })
 		close(done)
 	}()
 	t.Cleanup(func() { close(changes); <-done })
@@ -88,16 +88,105 @@ func TestFocusRequest(t *testing.T) {
 	jump = func(tty, term string) { calls = append(calls, [2]string{tty, term}) }
 	t.Cleanup(func() { jump = old })
 
-	req := proto.PendingRequest{ID: "1", TTY: "/dev/ttys003", Term: "iTerm.app"}
-	focusRequest(&panelShow{Request: req, Mode: "answer"}, "1")
-	focusRequest(&panelShow{Request: req, Mode: "notify"}, "2")
-	focusRequest(nil, "1")
+	var dismissed []string
+	dismiss := func(id string) { dismissed = append(dismissed, id) }
+
+	req := proto.PendingRequest{ID: "1", Kind: proto.Permission, TTY: "/dev/ttys003", Term: "iTerm.app"}
+	focusRequest(&panelShow{Request: req, Mode: "answer"}, "1", dismiss)
+	focusRequest(&panelShow{Request: req, Mode: "notify"}, "2", dismiss)
+	focusRequest(nil, "1", dismiss)
 	if len(calls) != 0 {
 		t.Fatalf("jump called: %v", calls)
 	}
-	focusRequest(&panelShow{Request: req, Mode: "notify"}, "1")
-	if want := [][2]string{{"/dev/ttys003", "iTerm.app"}}; !slices.Equal(calls, want) {
-		t.Fatalf("calls %v, want %v", calls, want)
+	focusRequest(&panelShow{Request: req, Mode: "notify"}, "1", dismiss)
+	if want := [][2]string{{"/dev/ttys003", "iTerm.app"}}; !slices.Equal(calls, want) || len(dismissed) != 0 {
+		t.Fatalf("calls %v, want %v, dismissed %v", calls, want, dismissed)
+	}
+
+	req.Kind = proto.Done
+	focusRequest(&panelShow{Request: req, Mode: "answer"}, "1", dismiss)
+	if len(calls) != 2 || !slices.Equal(dismissed, []string{"1"}) {
+		t.Fatalf("notice click: calls %v, dismissed %v", calls, dismissed)
+	}
+}
+
+func TestRunPanelHide(t *testing.T) {
+	old := hideUnit
+	hideUnit = time.Millisecond
+	t.Cleanup(func() { hideUnit = old })
+	calls := make(chan string, 10)
+	cfg := config.Default()
+	cfg.Events.Done.HideSeconds = 20
+	cfg.Events.Waits.HideSeconds = 80
+	changes := make(chan []proto.PendingRequest)
+	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func([]proto.PendingRequest, *panelShow, int) {})
+	t.Cleanup(func() { close(changes) })
+	none := func(d time.Duration) {
+		t.Helper()
+		select {
+		case id := <-calls:
+			t.Fatalf("dismiss %q", id)
+		case <-time.After(d):
+		}
+	}
+	after := func(id string, min time.Duration) {
+		t.Helper()
+		start := time.Now()
+		select {
+		case got := <-calls:
+			if got != id || time.Since(start) < min {
+				t.Fatalf("dismiss %q after %v, want %q after %v", got, time.Since(start), id, min)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("no dismiss of %q", id)
+		}
+	}
+
+	perm, done, waits := proto.PendingRequest{ID: "1", Kind: proto.Permission}, proto.PendingRequest{ID: "2", Kind: proto.Done}, proto.PendingRequest{ID: "3", Kind: proto.Waits}
+	changes <- []proto.PendingRequest{perm, done, waits}
+	none(100 * time.Millisecond) // behind the permission panel
+	changes <- []proto.PendingRequest{done, waits}
+	changes <- []proto.PendingRequest{done, waits} // same top: no second timer
+	after("2", 15*time.Millisecond)
+	none(60 * time.Millisecond)
+	changes <- []proto.PendingRequest{waits}
+	after("3", 70*time.Millisecond)
+	none(100 * time.Millisecond)
+}
+
+func TestRunPanelHideNotShown(t *testing.T) {
+	old := hideUnit
+	hideUnit = time.Millisecond
+	t.Cleanup(func() { hideUnit = old })
+	calls := make(chan string, 10)
+	cfg := config.Default()
+	cfg.Events.Done = config.Event{Show: false, HideSeconds: 1}
+	changes := make(chan []proto.PendingRequest)
+	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func([]proto.PendingRequest, *panelShow, int) {})
+	t.Cleanup(func() { close(changes) })
+	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Done}}
+	select {
+	case id := <-calls:
+		t.Fatalf("dismiss %q", id)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestRunPanelHideZero(t *testing.T) {
+	old := hideUnit
+	hideUnit = time.Millisecond
+	t.Cleanup(func() { hideUnit = old })
+	calls := make(chan string, 10)
+	cfg := config.Default()
+	cfg.Events.Done.HideSeconds, cfg.Events.Waits.HideSeconds = 0, 0
+	changes := make(chan []proto.PendingRequest)
+	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func([]proto.PendingRequest, *panelShow, int) {})
+	t.Cleanup(func() { close(changes) })
+	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Done}, {ID: "2", Kind: proto.Waits}}
+	select {
+	case id := <-calls:
+		t.Fatalf("dismiss %q", id)
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 
@@ -183,7 +272,7 @@ func TestPanelOptions(t *testing.T) {
 
 func TestRunPanelLiveTimeout(t *testing.T) {
 	changes, configs, timeouts := make(chan []proto.PendingRequest), make(chan config.Config), make(chan int, 1)
-	go runPanel(changes, configs, config.Default(), func(_ []proto.PendingRequest, _ *panelShow, m int) { timeouts <- m })
+	go runPanel(changes, configs, config.Default(), func(string) {}, func(_ []proto.PendingRequest, _ *panelShow, m int) { timeouts <- m })
 	t.Cleanup(func() { close(changes) })
 	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Permission}}
 	if m := <-timeouts; m != 30 {

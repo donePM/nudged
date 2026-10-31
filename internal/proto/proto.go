@@ -18,10 +18,15 @@ const (
 	Waits      = "waits"
 )
 
+// Hook is the Request.Kind of a message from `nudged hook`.
+const Hook = "hook"
+
 type Request struct {
 	Kind    string          `json:"kind"`
 	Event   string          `json:"event"`
 	Payload json.RawMessage `json:"payload,omitempty"`
+	TTY     string          `json:"tty,omitempty"`
+	Term    string          `json:"term,omitempty"`
 }
 
 type Reply struct {

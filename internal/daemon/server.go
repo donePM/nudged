@@ -155,17 +155,19 @@ func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 		s.Registry.Hook(req.Event, req.Payload, req.Term, req.TTY)
 		var p struct {
 			SessionID        string            `json:"session_id"`
+			AgentID          string            `json:"agent_id"`
 			ToolName         string            `json:"tool_name"`
 			NotificationType string            `json:"notification_type"`
 			BackgroundTasks  []json.RawMessage `json:"background_tasks"`
 		}
 		json.Unmarshal(req.Payload, &p)
 		// Claude Code can send a Notification while its permission prompt still waits.
+		// Subagents run in parallel, so only an event of the same agent ends a request. Empty means the main agent.
 		if p.SessionID != "" && req.Event != "Notification" {
-			s.queue.endWhere(func(h *held) bool { return h.SessionID == p.SessionID })
+			s.queue.endWhere(func(h *held) bool { return h.SessionID == p.SessionID && h.AgentID == p.AgentID })
 		}
 		if kind := holdKind(req.Event, p.ToolName); kind != "" {
-			h := s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
+			h := s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, AgentID: p.AgentID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
 			if h != nil {
 				return proto.Reply{}, h
 			}
@@ -175,7 +177,7 @@ func (s *Server) apply(req proto.Request) (proto.Reply, *held) {
 				// A new waits notice replaces the older one of the session.
 				s.queue.endWhere(func(h *held) bool { return h.Kind == proto.Waits && h.SessionID == p.SessionID })
 			}
-			s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
+			s.queue.add(proto.PendingRequest{Kind: kind, SessionID: p.SessionID, AgentID: p.AgentID, Event: req.Event, Payload: req.Payload, Term: req.Term, TTY: req.TTY})
 		}
 	case proto.Statusline:
 		var info proto.StatuslineInfo

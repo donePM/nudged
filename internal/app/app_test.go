@@ -4,13 +4,17 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"io/fs"
 	"net"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/rokde/nudged/frontend"
 	"github.com/rokde/nudged/internal/proto"
 )
 
@@ -121,5 +125,20 @@ func TestQuit(t *testing.T) {
 	}
 	if _, err := os.Lstat(path); !os.IsNotExist(err) {
 		t.Fatalf("socket file: %v", err)
+	}
+}
+
+func TestAssets(t *testing.T) {
+	want, err := fs.ReadFile(frontend.Dist, "dist/app/index.html")
+	if err != nil {
+		want, err = fs.ReadFile(frontend.Dist, "dist/index.html")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	assets().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Type"), "text/html") || rec.Body.String() != string(want) {
+		t.Fatalf("status %d, type %q, body %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 	}
 }

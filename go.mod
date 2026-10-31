@@ -2,6 +2,8 @@ module github.com/rokde/nudged
 
 go 1.27
 
+ignore ./frontend/node_modules
+
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/wailsapp/wails/v3 v3.0.0

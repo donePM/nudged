@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/rokde/nudged/frontend"
+	"github.com/rokde/nudged/internal/config"
 	"github.com/rokde/nudged/internal/daemon"
 	"github.com/rokde/nudged/internal/proto"
 )
@@ -51,11 +52,14 @@ func send(t *testing.T, path string, req proto.Request) proto.Reply {
 
 func TestStartDaemon(t *testing.T) {
 	path := sockPath(t)
-	srv, _, err := startDaemon(path)
+	srv, cfg, _, err := startDaemon(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { srv.Close() })
+	if cfg != config.Default() {
+		t.Fatalf("config %+v", cfg)
+	}
 	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +70,7 @@ func TestStartDaemon(t *testing.T) {
 	if rep := send(t, path, proto.Request{Kind: proto.Status}); !rep.OK || string(rep.Output) != "[]" {
 		t.Fatalf("status reply %+v", rep)
 	}
-	if _, _, err := startDaemon(path); err == nil {
+	if _, _, _, err := startDaemon(path); err == nil {
 		t.Fatal("second start: no error")
 	}
 	if code := run(path); code != 1 {
@@ -90,7 +94,7 @@ func TestToggle(t *testing.T) {
 		t.Fatal("icons are empty or equal")
 	}
 	path := sockPath(t)
-	srv, _, err := startDaemon(path)
+	srv, _, _, err := startDaemon(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +117,7 @@ func TestToggle(t *testing.T) {
 
 func TestQuit(t *testing.T) {
 	path := sockPath(t)
-	srv, errc, err := startDaemon(path)
+	srv, _, errc, err := startDaemon(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +170,7 @@ func checkTray(t *testing.T, srv *daemon.Server, f *fakeTray, paused bool) {
 
 func testServer(t *testing.T) *daemon.Server {
 	t.Helper()
-	srv, _, err := startDaemon(sockPath(t))
+	srv, _, _, err := startDaemon(sockPath(t))
 	if err != nil {
 		t.Fatal(err)
 	}

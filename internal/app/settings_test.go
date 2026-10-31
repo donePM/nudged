@@ -1,6 +1,8 @@
 package app
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -294,6 +296,66 @@ func TestSettingsViewSource(t *testing.T) {
 	for _, want := range []string{"`Test ${r.label} sound`", `max="1440"`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("Settings.vue lacks %s", want)
+		}
+	}
+}
+
+func fakeLogin(t *testing.T, enabled bool, err error) (*[]bool, *bytes.Buffer) {
+	t.Helper()
+	var calls []bool
+	var log bytes.Buffer
+	oldE, oldS, oldLog := loginEnabled, loginSet, logw
+	t.Cleanup(func() { loginEnabled, loginSet, logw = oldE, oldS, oldLog })
+	loginEnabled = func() bool { return enabled }
+	loginSet = func(on bool) error { calls = append(calls, on); return err }
+	logw = &log
+	return &calls, &log
+}
+
+func TestSyncLoginItem(t *testing.T) {
+	for _, c := range []struct {
+		want, enabled bool
+		calls         []bool
+	}{
+		{true, false, []bool{true}},
+		{false, true, []bool{false}},
+		{true, true, nil},
+		{false, false, nil},
+	} {
+		calls, log := fakeLogin(t, c.enabled, nil)
+		cfg := config.Default()
+		cfg.StartAtLogin = c.want
+		syncLoginItem(cfg)
+		if !slices.Equal(*calls, c.calls) || log.Len() != 0 {
+			t.Errorf("config %v, enabled %v: calls %v, log %q", c.want, c.enabled, *calls, log.String())
+		}
+	}
+}
+
+func TestSyncLoginItemError(t *testing.T) {
+	calls, log := fakeLogin(t, false, errors.New("disk full"))
+	syncLoginItem(config.Default())
+	lines := strings.Split(strings.TrimSuffix(log.String(), "\n"), "\n")
+	if len(*calls) != 1 || len(lines) != 1 || !strings.Contains(lines[0], "start at login") || !strings.Contains(lines[0], "disk full") {
+		t.Fatalf("calls %v, log %q", *calls, log.String())
+	}
+}
+
+func TestSyncLoginItemPlist(t *testing.T) {
+	sockPath(t)
+	bin := filepath.Join(t.TempDir(), "nudged")
+	if err := os.WriteFile(bin, nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := executable
+	executable = func() (string, error) { return bin, nil }
+	t.Cleanup(func() { executable = old })
+	for _, on := range []bool{true, false} {
+		cfg := config.Default()
+		cfg.StartAtLogin = on
+		syncLoginItem(cfg)
+		if loginitem.Enabled() != on {
+			t.Errorf("start_at_login %v: plist enabled %v", on, !on)
 		}
 	}
 }

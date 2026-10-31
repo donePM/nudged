@@ -3,7 +3,9 @@ package app
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"github.com/rokde/nudged/internal/daemon"
 	"github.com/rokde/nudged/internal/proto"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed running.png
@@ -29,6 +32,11 @@ var menuItems = []menuItem{
 	{"Settings…", "CmdOrCtrl+,"},
 	{"Quit", "CmdOrCtrl+Q"},
 }
+
+// registerHotkey registers ⌥⌘P and calls onPress for each key press. hotkey_darwin.go sets it.
+var registerHotkey = func(onPress func()) error { return errors.New("hotkey not supported") }
+
+var logw io.Writer = os.Stderr
 
 // shortcut: no settings window, S19 sets this func
 var openSettings = func() {}
@@ -70,6 +78,20 @@ func toggle(srv *daemon.Server) ([]byte, string) {
 	return runningIcon, menuItems[0].Label
 }
 
+// applyToggle flips the pause flag and shows the new state in the tray. The Pause click and the hotkey both call it.
+func applyToggle(srv *daemon.Server, setIcon func([]byte), setLabel func(string)) {
+	icon, label := toggle(srv)
+	setIcon(icon)
+	setLabel(label)
+}
+
+// setupHotkey registers the pause hotkey. On error it writes one line to logw, and the Pause item stays usable.
+func setupHotkey(onPress func()) {
+	if err := registerHotkey(onPress); err != nil {
+		fmt.Fprintln(logw, "nudged: pause hotkey:", err)
+	}
+}
+
 // quit closes the server, which removes the socket file, and then quits the app.
 func quit(srv *daemon.Server, quitApp func()) {
 	srv.Close()
@@ -101,19 +123,27 @@ func run(socket string) int {
 	tray := app.SystemTray.New()
 	tray.SetTemplateIcon(runningIcon)
 	menu := app.NewMenu()
+	var pauseItem *application.MenuItem
+	pause := func() {
+		application.InvokeSync(func() {
+			applyToggle(srv, func(b []byte) { tray.SetTemplateIcon(b) }, func(l string) { pauseItem.SetLabel(l) })
+		})
+	}
 	actions := []func(*application.Context){
-		func(ctx *application.Context) {
-			icon, label := toggle(srv)
-			tray.SetTemplateIcon(icon)
-			ctx.ClickedMenuItem().SetLabel(label)
-		},
+		func(*application.Context) { pause() },
 		func(*application.Context) { openSettings() },
 		func(*application.Context) { quit(srv, app.Quit) },
 	}
 	for i, it := range menuItems {
-		menu.Add(it.Label).SetAccelerator(it.Accelerator).OnClick(actions[i])
+		item := menu.Add(it.Label).SetAccelerator(it.Accelerator).OnClick(actions[i])
+		if i == 0 {
+			pauseItem = item
+		}
 	}
 	tray.SetMenu(menu)
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		application.InvokeSync(func() { setupHotkey(pause) })
+	})
 	go func() {
 		if err := <-errc; err != nil {
 			fmt.Fprintln(os.Stderr, "nudged:", err)

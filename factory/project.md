@@ -8,7 +8,7 @@ refreshes it after each merge.
 - Base: `origin/main`, or the local target branch when it already contains the base
   (local merges not pushed yet). Every job's worktree starts there.
 - Merge target: `main` (pushed to GitHub after each merge; CI runs there)
-- Language / stack: Go 1.27 (module `github.com/rokde/nudged`; deps: BurntSushi/toml v1.6.0); later Wails v3 + Vue 3/TS/Vite frontend (S12)
+- Language / stack: Go 1.27 (module `github.com/rokde/nudged`; deps: BurntSushi/toml v1.6.0); wailsapp/wails/v3 v3.0.0 (tray app in `internal/app`, `nudged` with no args); Vue 3/TS/Vite frontend comes with S12b
 - Install: `go mod download`. Run it once in each new worktree.
 - Test command: `go vet ./... && make test`
 - Lint / format: `gofmt -l . && go vet ./...`
@@ -19,7 +19,7 @@ refreshes it after each merge.
 
 ## Conventions
 - Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`).
-- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>` (now: config, daemon, focus, hookclient, installer, sound, statusline, usage). `main.go` has a `usage()` func, so import `internal/usage` as `usagelog`.
+- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>` (now: app, config, daemon, focus, hookclient, installer, sound, statusline, usage). `main.go` has a `usage()` func, so import `internal/usage` as `usagelog`.
 - Unix socket paths on macOS max 104 bytes: tests use `os.MkdirTemp("", "nd")`, not `t.TempDir()`.
 - CI: `.github/workflows/ci.yml` on `macos-latest` runs `go vet` and `go test`.
 - Product requirements live in the

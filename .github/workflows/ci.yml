@@ -2,7 +2,10 @@ name: ci
 
 on:
   push:
+    branches: ['**']
   pull_request:
+  # release.yml runs the tests through this before it builds.
+  workflow_call:
 
 permissions:
   contents: read

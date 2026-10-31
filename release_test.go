@@ -94,6 +94,10 @@ func TestGoreleaserConfig(t *testing.T) {
 		t.Errorf("skip_upload line %q must check HOMEBREW_TAP_TOKEN and .Prerelease", skip)
 	}
 	// GoReleaser 2.19 has no envOrDefault or isEnvSet; goreleaser check does not catch it.
+	// GoReleaser accepts only a bare {{ .Env.NAME }} as repository token.
+	if !strings.Contains(s, `token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"`) {
+		t.Error("cask repository token must be exactly {{ .Env.HOMEBREW_TAP_TOKEN }}")
+	}
 	for _, f := range []string{"envOrDefault", "isEnvSet"} {
 		if strings.Contains(s, f) {
 			t.Errorf(".goreleaser.yaml uses template function %s, which GoReleaser does not define", f)
@@ -103,7 +107,8 @@ func TestGoreleaserConfig(t *testing.T) {
 
 func TestReleaseWorkflow(t *testing.T) {
 	s := fileContains(t, ".github/workflows/release.yml",
-		"tags: ['v*']", "macos-latest", "contents: write", "goreleaser/goreleaser-action", "HOMEBREW_TAP_TOKEN")
+		"tags: ['v*']", "macos-latest", "contents: write", "goreleaser/goreleaser-action", "HOMEBREW_TAP_TOKEN",
+		"uses: ./.github/workflows/ci.yml", "needs: test")
 	guard := strings.Index(s, "hashFiles('frontend/package.json')")
 	build := strings.Index(s, "npm --prefix frontend run build")
 	if guard < 0 || build < 0 || guard > build {

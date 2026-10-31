@@ -56,7 +56,7 @@ homebrew_casks:
     repository:
       owner: donePM
       name: homebrew-tap
-      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
     skip_upload: '{{ or (eq (index .Env "HOMEBREW_TAP_TOKEN") "") (ne .Prerelease "") }}'
     custom_block: |

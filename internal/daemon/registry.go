@@ -48,12 +48,19 @@ func (r *Registry) session(id, cwd string) *proto.Session {
 
 // Hook applies one hook event. It ignores unknown events and payloads with no session_id.
 func (r *Registry) Hook(event string, payload []byte, term, tty string) {
-	status, ok := hookStatus[event]
 	var p struct {
 		SessionID string `json:"session_id"`
 		Cwd       string `json:"cwd"`
+		ToolName  string `json:"tool_name"`
 	}
-	if !ok || json.Unmarshal(payload, &p) != nil || p.SessionID == "" {
+	if json.Unmarshal(payload, &p) != nil || p.SessionID == "" {
+		return
+	}
+	status, ok := hookStatus[event]
+	if holdKind(event, p.ToolName) != "" {
+		status, ok = "waiting", true
+	}
+	if !ok {
 		return
 	}
 	r.mu.Lock()

@@ -157,10 +157,11 @@ func focusRequest(cur *panelShow, id string, dismiss func(string)) {
 // runPanel keeps the last snapshot and the current config until changes closes.
 // For each snapshot and each config, it calls show with the top request (nil hides the panel) and the current timeout.
 // When a notice with a HideSeconds above 0 becomes the top request, it calls dismiss with the notice id after that time, once for each id.
+// A new config stops the running timers, and the top notice gets a new timer with the new time.
 func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, dismiss func(string), show func(*panelShow, int)) {
 	var list []proto.PendingRequest
 	var seen map[string]bool
-	timed := map[string]bool{}
+	timed := map[string]*time.Timer{}
 	for {
 		select {
 		case l, ok := <-changes:
@@ -178,6 +179,10 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 				}()
 			}
 		case cfg = <-configs:
+			for id, t := range timed {
+				t.Stop()
+				delete(timed, id)
+			}
 		}
 		var s *panelShow
 		if req, others, ok := top(list, cfg); ok {
@@ -186,9 +191,8 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 				g := genericPanel(req)
 				s.Generic = &g
 			}
-			if ev, _ := event(req.Kind, cfg); notice(req.Kind) && !timed[req.ID] && ev.HideSeconds > 0 {
-				timed[req.ID] = true
-				time.AfterFunc(time.Duration(ev.HideSeconds)*hideUnit, func() { dismiss(req.ID) })
+			if ev, _ := event(req.Kind, cfg); notice(req.Kind) && timed[req.ID] == nil && ev.HideSeconds > 0 {
+				timed[req.ID] = time.AfterFunc(time.Duration(ev.HideSeconds)*hideUnit, func() { dismiss(req.ID) })
 			}
 		}
 		for id := range timed {

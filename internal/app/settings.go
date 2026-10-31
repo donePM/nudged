@@ -114,7 +114,7 @@ func decodeConfig(data any) (config.Config, error) {
 	return cfg, err
 }
 
-// saveSettings validates cfg, writes it to config.toml, and applies the timeout to the running daemon.
+// saveSettings validates cfg, writes it to config.toml, applies the timeout to the running daemon, and sends cfg to the panel loop.
 func saveSettings(srv *daemon.Server, cfg config.Config) error {
 	if cfg.Mode != "answer" && cfg.Mode != "notify" {
 		return fmt.Errorf("mode %q is not \"answer\" or \"notify\"", cfg.Mode)
@@ -132,8 +132,22 @@ func saveSettings(srv *daemon.Server, cfg config.Config) error {
 		return err
 	}
 	srv.SetHoldTimeout(time.Duration(cfg.TimeoutMinutes) * time.Minute)
+	for sent := false; !sent; {
+		select {
+		case panelConfigs <- cfg:
+			sent = true
+		default:
+			select { // drop the old config, so the newest one wins
+			case <-panelConfigs:
+			default:
+			}
+		}
+	}
 	return nil
 }
+
+// panelConfigs takes the saved config to the panel loop.
+var panelConfigs = make(chan config.Config, 1)
 
 var play = sound.Play
 

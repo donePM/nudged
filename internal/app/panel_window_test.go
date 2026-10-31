@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"slices"
 	"sync"
 	"testing"
@@ -17,7 +18,7 @@ func loop(t *testing.T, configs chan config.Config, cfg config.Config) (chan []p
 	changes, shows := make(chan []proto.PendingRequest), make(chan *panelShow, 1)
 	done := make(chan struct{})
 	go func() {
-		runPanel(changes, configs, cfg, func(string) {}, func(_ []proto.PendingRequest, s *panelShow, _ int) { shows <- s })
+		runPanel(changes, configs, cfg, func(string) {}, func(s *panelShow, _ int) { shows <- s })
 		close(done)
 	}()
 	t.Cleanup(func() { close(changes); <-done })
@@ -119,7 +120,7 @@ func TestRunPanelHide(t *testing.T) {
 	cfg.Events.Done.HideSeconds = 20
 	cfg.Events.Waits.HideSeconds = 80
 	changes := make(chan []proto.PendingRequest)
-	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func([]proto.PendingRequest, *panelShow, int) {})
+	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func(*panelShow, int) {})
 	t.Cleanup(func() { close(changes) })
 	none := func(d time.Duration) {
 		t.Helper()
@@ -162,7 +163,7 @@ func TestRunPanelHideNotShown(t *testing.T) {
 	cfg := config.Default()
 	cfg.Events.Done = config.Event{Show: false, HideSeconds: 1}
 	changes := make(chan []proto.PendingRequest)
-	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func([]proto.PendingRequest, *panelShow, int) {})
+	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func(*panelShow, int) {})
 	t.Cleanup(func() { close(changes) })
 	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Done}}
 	select {
@@ -180,7 +181,7 @@ func TestRunPanelHideZero(t *testing.T) {
 	cfg := config.Default()
 	cfg.Events.Done.HideSeconds, cfg.Events.Waits.HideSeconds = 0, 0
 	changes := make(chan []proto.PendingRequest)
-	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func([]proto.PendingRequest, *panelShow, int) {})
+	go runPanel(changes, nil, cfg, func(id string) { calls <- id }, func(*panelShow, int) {})
 	t.Cleanup(func() { close(changes) })
 	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Done}, {ID: "2", Kind: proto.Waits}}
 	select {
@@ -272,7 +273,7 @@ func TestPanelOptions(t *testing.T) {
 
 func TestRunPanelLiveTimeout(t *testing.T) {
 	changes, configs, timeouts := make(chan []proto.PendingRequest), make(chan config.Config), make(chan int, 1)
-	go runPanel(changes, configs, config.Default(), func(string) {}, func(_ []proto.PendingRequest, _ *panelShow, m int) { timeouts <- m })
+	go runPanel(changes, configs, config.Default(), func(string) {}, func(_ *panelShow, m int) { timeouts <- m })
 	t.Cleanup(func() { close(changes) })
 	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Permission}}
 	if m := <-timeouts; m != 30 {
@@ -317,6 +318,34 @@ func TestRunPanelGeneric(t *testing.T) {
 		s := next(t, shows)
 		if (s.Generic != nil) != c.want || c.want && s.Generic.Tool != "Bash" {
 			t.Errorf("%s: generic = %+v", c.mode, s.Generic)
+
+func TestAnswerPanel(t *testing.T) {
+	payload := json.RawMessage(`{"permission_suggestions":[{"type":"addRules"}]}`)
+	pending := []proto.PendingRequest{{ID: "p", Kind: proto.Permission, Payload: payload}}
+	allow, _ := decision("allow")
+	deny, _ := decision("deny")
+	always, _ := permissionDecision("always", 0, payload)
+	for _, c := range []struct {
+		name string
+		a    panelAnswer
+		want json.RawMessage
+	}{
+		{"allow", panelAnswer{ID: "p", Behavior: "allow"}, allow},
+		{"deny", panelAnswer{ID: "p", Behavior: "deny"}, deny},
+		{"always", panelAnswer{ID: "p", Behavior: "always", Suggestion: 0}, always},
+		{"index out of range", panelAnswer{ID: "p", Behavior: "always", Suggestion: 1}, nil},
+		{"unknown id", panelAnswer{ID: "x", Behavior: "allow"}, nil},
+	} {
+		var got []json.RawMessage
+		err := answerPanel(pending, c.a, func(_ string, out json.RawMessage) error { got = append(got, out); return nil })
+		if c.want == nil {
+			if err == nil || len(got) != 0 {
+				t.Errorf("%s: err %v, answers %d", c.name, err, len(got))
+			}
+			continue
+		}
+		if err != nil || len(got) != 1 || string(got[0]) != string(c.want) {
+			t.Errorf("%s: err %v, got %s", c.name, err, got)
 		}
 	}
 }

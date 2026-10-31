@@ -1,0 +1,10 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-project/00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/Users/dev/project",
+  "scratchpad_dir": "/private/tmp/claude-501/-Users-dev-project/00000000-0000-4000-8000-000000000001/scratchpad",
+  "prompt_id": "00000000-0000-4000-8000-000000000002",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Use the Bash tool to run exactly: touch d.txt . Do not use subagents. Then reply DONE."
+}

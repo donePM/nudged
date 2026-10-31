@@ -45,7 +45,7 @@ main { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-
 header { display: flex; justify-content: space-between; text-transform: capitalize; }
 header span { opacity: 0.7; text-transform: none; }
 p { margin: 0; }
-.what { font-size: 15px; overflow-wrap: anywhere; }
+.what { font-size: 15px; overflow-wrap: anywhere; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; }
 .project, .hint { opacity: 0.7; }
 @media (prefers-color-scheme: dark) {
   body { background: #2a2a2c; color: #f5f5f7; }

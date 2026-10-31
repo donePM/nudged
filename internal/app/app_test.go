@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/rokde/nudged/internal/daemon"
 	"github.com/rokde/nudged/internal/proto"
 )
 
@@ -122,4 +125,84 @@ func TestQuit(t *testing.T) {
 	if _, err := os.Lstat(path); !os.IsNotExist(err) {
 		t.Fatalf("socket file: %v", err)
 	}
+}
+
+type fakeTray struct {
+	icon  []byte
+	label string
+}
+
+func (f *fakeTray) setIcon(b []byte)  { f.icon = b }
+func (f *fakeTray) setLabel(l string) { f.label = l }
+
+func checkTray(t *testing.T, srv *daemon.Server, f *fakeTray, paused bool) {
+	t.Helper()
+	icon, label := runningIcon, "Pause"
+	if paused {
+		icon, label = pausedIcon, "Resume"
+	}
+	if srv.Paused() != paused || !bytes.Equal(f.icon, icon) || f.label != label {
+		t.Fatalf("paused %v, label %q, want paused %v, label %q", srv.Paused(), f.label, paused, label)
+	}
+}
+
+func testServer(t *testing.T) *daemon.Server {
+	t.Helper()
+	srv, _, err := startDaemon(sockPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { srv.Close() })
+	return srv
+}
+
+func TestApplyToggle(t *testing.T) {
+	srv := testServer(t)
+	f := &fakeTray{}
+	applyToggle(srv, f.setIcon, f.setLabel)
+	checkTray(t, srv, f, true)
+	applyToggle(srv, f.setIcon, f.setLabel)
+	checkTray(t, srv, f, false)
+}
+
+func TestHotkeyPress(t *testing.T) {
+	srv := testServer(t)
+	f := &fakeTray{}
+	var press func()
+	old := registerHotkey
+	t.Cleanup(func() { registerHotkey = old })
+	registerHotkey = func(onPress func()) error { press = onPress; return nil }
+	var log bytes.Buffer
+	oldLog := logw
+	t.Cleanup(func() { logw = oldLog })
+	logw = &log
+
+	setupHotkey(func() { applyToggle(srv, f.setIcon, f.setLabel) })
+	if press == nil || log.Len() != 0 {
+		t.Fatalf("callback %v, log %q", press != nil, log.String())
+	}
+	press()
+	checkTray(t, srv, f, true)
+	press()
+	checkTray(t, srv, f, false)
+}
+
+func TestHotkeyError(t *testing.T) {
+	srv := testServer(t)
+	f := &fakeTray{}
+	old := registerHotkey
+	t.Cleanup(func() { registerHotkey = old })
+	registerHotkey = func(func()) error { return errors.New("key taken") }
+	var log bytes.Buffer
+	oldLog := logw
+	t.Cleanup(func() { logw = oldLog })
+	logw = &log
+
+	setupHotkey(func() { applyToggle(srv, f.setIcon, f.setLabel) })
+	lines := strings.Split(strings.TrimSuffix(log.String(), "\n"), "\n")
+	if len(lines) != 1 || !strings.Contains(lines[0], "pause hotkey") {
+		t.Fatalf("log %q", log.String())
+	}
+	applyToggle(srv, f.setIcon, f.setLabel)
+	checkTray(t, srv, f, true)
 }

@@ -102,7 +102,7 @@ func TestHold(t *testing.T) {
 	start(t, path, NewRegistry())
 	_, ch1 := holdHook(t, path, "PermissionRequest", perm1)
 	waitPending(t, path, 1)
-	_, ch2 := holdHook(t, path, "PreToolUse", ask2)
+	_, ch2 := holdHook(t, path, "PermissionRequest", ask2)
 	list := waitPending(t, path, 2)
 	hook(t, path, "PreToolUse", `{"session_id":"s3","tool_name":"Bash"}`)
 	noReply(t, ch1, 50*time.Millisecond)
@@ -122,6 +122,18 @@ func TestHold(t *testing.T) {
 		if want := map[string]string{"s1": "waiting", "s2": "waiting", "s3": "idle"}[s.ID]; s.Status != want {
 			t.Fatalf("session %+v, want %s", s, want)
 		}
+	}
+}
+
+func TestPreToolUseNotHeld(t *testing.T) {
+	path := sockPath(t)
+	start(t, path, NewRegistry())
+	rep := send(t, path, proto.Request{Kind: proto.Hook, Event: "PreToolUse", Payload: json.RawMessage(ask2)})
+	if b, _ := json.Marshal(rep); string(b) != `{"ok":true}` {
+		t.Fatalf("reply %s", b)
+	}
+	if list := pending(t, path); len(list) != 0 {
+		t.Fatalf("pending %+v", list)
 	}
 }
 
@@ -198,7 +210,7 @@ func TestPause(t *testing.T) {
 	path := sockPath(t)
 	srv := start(t, path, NewRegistry())
 	_, ch1 := holdHook(t, path, "PermissionRequest", perm1)
-	_, ch2 := holdHook(t, path, "PreToolUse", ask2)
+	_, ch2 := holdHook(t, path, "PermissionRequest", ask2)
 	waitPending(t, path, 2)
 	srv.SetPaused(true)
 	reply(t, ch1, `{"ok":true}`)

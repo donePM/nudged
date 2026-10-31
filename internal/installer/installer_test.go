@@ -82,7 +82,7 @@ func TestInstallAddsEntries(t *testing.T) {
 		if h["command"] != Quote(bin)+" hook "+ev || h["timeout"] != float64(1800) || h["type"] != "command" {
 			t.Errorf("%s: entry %v", ev, h)
 		}
-		if want := map[bool]any{true: "AskUserQuestion", false: nil}[ev == "PreToolUse"]; e[0]["matcher"] != want {
+		if e[0]["matcher"] != nil {
 			t.Errorf("%s: matcher %v", ev, e[0]["matcher"])
 		}
 	}
@@ -91,13 +91,45 @@ func TestInstallAddsEntries(t *testing.T) {
 			t.Errorf("key %s changed: %v", k, m[k])
 		}
 	}
-	for _, ev := range []string{"PreToolUse", "Stop"} {
-		if g := groups(m, ev); !reflect.DeepEqual(g[0], groups(user, ev)[0]) || len(g) != 2 {
-			t.Errorf("%s: user hook changed: %v", ev, g)
-		}
+	if g := groups(m, "Stop"); !reflect.DeepEqual(g[0], groups(user, "Stop")[0]) || len(g) != 2 {
+		t.Errorf("Stop: user hook changed: %v", g)
+	}
+	if g := groups(m, "PreToolUse"); !reflect.DeepEqual(g, groups(user, "PreToolUse")) {
+		t.Errorf("PreToolUse: got %v", g)
 	}
 	if data, _ := os.ReadFile(path); !bytes.Contains(data, []byte("<ok>")) {
 		t.Error("HTML characters are escaped")
+	}
+}
+
+func TestOldPreToolUseEntry(t *testing.T) {
+	old := `{"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "'/usr/local/bin/nudged' hook PreToolUse", "timeout": 1800}]}`
+	user := `{"matcher": "Bash", "hooks": [{"type": "command", "command": "lint.sh"}]}`
+	for _, tc := range []struct {
+		name, groups string
+		want         int
+	}{{"with user hook", user + "," + old, 1}, {"only nudged", old, 0}} {
+		for _, op := range []string{"install", "uninstall"} {
+			path := setup(t, `{"hooks": {"PreToolUse": [`+tc.groups+`]}}`)
+			var err error
+			if op == "install" {
+				err = Install(path, bin)
+			} else {
+				err = Uninstall(path)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := load(t, path)
+			hooks, _ := m["hooks"].(map[string]any)
+			g, has := hooks["PreToolUse"].([]any)
+			if len(g) != tc.want || has != (tc.want > 0) {
+				t.Fatalf("%s, %s: PreToolUse %v", tc.name, op, hooks["PreToolUse"])
+			}
+			if tc.want > 0 && !reflect.DeepEqual(g[0], load(t, path+".nudged.bak")["hooks"].(map[string]any)["PreToolUse"].([]any)[0]) {
+				t.Errorf("%s, %s: user hook changed", tc.name, op)
+			}
+		}
 	}
 }
 

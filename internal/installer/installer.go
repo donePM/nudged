@@ -16,8 +16,8 @@ import (
 // Timeout is the hook timeout in seconds. The daemon owns the real timeout.
 const Timeout = 1800
 
-// Events are the hook events that nudged handles. PreToolUse gets the matcher AskUserQuestion.
-var Events = []string{"SessionStart", "SessionEnd", "UserPromptSubmit", "PostToolUse", "Stop", "Notification", "PermissionRequest", "PreToolUse"}
+// Events are the hook events that nudged handles. Questions arrive as PermissionRequest, so PreToolUse is not in the list.
+var Events = []string{"SessionStart", "SessionEnd", "UserPromptSubmit", "PostToolUse", "Stop", "Notification", "PermissionRequest"}
 
 // Install adds the nudged hooks and wraps the statusline. It first removes old nudged entries.
 func Install(settingsPath, binPath string) error {
@@ -35,13 +35,9 @@ func Install(settingsPath, binPath string) error {
 			if !ok && hooks[ev] != nil {
 				return fmt.Errorf("hooks.%s is not an array", ev)
 			}
-			group := map[string]any{"hooks": []any{map[string]any{
+			hooks[ev] = append(groups, map[string]any{"hooks": []any{map[string]any{
 				"type": "command", "command": Quote(binPath) + " hook " + ev, "timeout": Timeout,
-			}}}
-			if ev == "PreToolUse" {
-				group["matcher"] = "AskUserQuestion"
-			}
-			hooks[ev] = append(groups, group)
+			}}})
 		}
 
 		sl, ok := s["statusLine"].(map[string]any)

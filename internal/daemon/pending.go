@@ -14,12 +14,12 @@ import (
 // holdKind returns the pending kind of a hook event, or "" when the daemon replies at once.
 func holdKind(event, tool string) string {
 	switch {
-	case event == "PermissionRequest":
-		return proto.Permission
-	case event == "PreToolUse" && tool == "AskUserQuestion":
+	case event != "PermissionRequest":
+		return ""
+	case tool == "AskUserQuestion":
 		return proto.Question
 	}
-	return ""
+	return proto.Permission
 }
 
 type held struct {

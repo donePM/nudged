@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -32,14 +34,24 @@ type Config struct {
 	Mode           string `toml:"mode"` // "answer" or "notify"
 	TimeoutMinutes int    `toml:"timeout_minutes"`
 	StartAtLogin   bool   `toml:"start_at_login"`
+	CheckUpdates   bool   `toml:"check_updates"` // check GitHub for a new release once a day
+	Position       string `toml:"position"`      // screen corner of the notification cards, one of Positions
 	Events         Events `toml:"events"`
 }
+
+// Positions are the screen corners for the notification cards.
+var Positions = []string{"top-right", "top-left", "bottom-right", "bottom-left"}
+
+// ValidPosition reports whether p is one of Positions.
+func ValidPosition(p string) bool { return slices.Contains(Positions, p) }
 
 func Default() Config {
 	return Config{
 		Mode:           "answer",
 		TimeoutMinutes: 30,
 		StartAtLogin:   true,
+		CheckUpdates:   true,
+		Position:       "top-right",
 		Events: Events{
 			Permission: Event{Show: true},
 			Question:   Event{Show: true},
@@ -76,6 +88,9 @@ func Load() (Config, error) {
 	}
 	if cfg.Mode != "answer" && cfg.Mode != "notify" {
 		return Default(), fmt.Errorf("%s: mode %q is not \"answer\" or \"notify\"", path, cfg.Mode)
+	}
+	if !ValidPosition(cfg.Position) {
+		return Default(), fmt.Errorf("%s: position %q is not one of %s", path, cfg.Position, strings.Join(Positions, ", "))
 	}
 	cfg.TimeoutMinutes = min(cfg.TimeoutMinutes, MaxTimeoutMinutes) // in memory only, the file keeps the hand edit
 	return cfg, nil

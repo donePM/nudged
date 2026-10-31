@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,15 +32,9 @@ func (w webWindow) show() {
 }
 
 // newSettingsWindow registers the settings events and creates the window. Tests replace it.
-var newSettingsWindow = func(app *application.App, srv *daemon.Server) settingsWindow {
-	registerSettingsEvents(app, srv)
-	w := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:   "settings",
-		Title:  "nudged Settings",
-		Width:  560,
-		Height: 480,
-		URL:    settingsURL,
-	})
+var newSettingsWindow = func(app *application.App, srv *daemon.Server, u *updater) settingsWindow {
+	registerSettingsEvents(app, srv, u)
+	w := app.Window.NewWithOptions(settingsOptions())
 	// The close button hides the window, so the next open shows the same window.
 	w.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		w.Hide()
@@ -47,27 +43,60 @@ var newSettingsWindow = func(app *application.App, srv *daemon.Server) settingsW
 	return webWindow{w}
 }
 
+// settingsOptions are the options of the settings window: a sidebar window with a hidden title bar.
+func settingsOptions() application.WebviewWindowOptions {
+	return application.WebviewWindowOptions{
+		Name:           "settings",
+		Title:          "nudged Settings",
+		Width:          680,
+		Height:         520,
+		URL:            settingsURL,
+		DisableResize:  true,
+		BackgroundType: application.BackgroundTypeTranslucent,
+		Mac: application.MacWindow{
+			Backdrop:                application.MacBackdropTranslucent,
+			TitleBar:                application.MacTitleBarHiddenInset,
+			InvisibleTitleBarHeight: 52,
+		},
+	}
+}
+
 var (
-	settingsMu  sync.Mutex
-	settingsWin settingsWindow
+	settingsMu   sync.Mutex
+	settingsWin  settingsWindow
+	settingsPage string // the page the next settings:get opens, for a window whose view is not loaded yet
 )
 
 // emitSettings sends an event to the settings view. Tests replace it.
 var emitSettings = func(app *application.App, name string, data any) { app.Event.Emit(name, data) }
 
 // openSettings creates the settings window on the first call. Every call reloads config.toml into the view, then shows and focuses the window.
-func openSettings(app *application.App, srv *daemon.Server) {
+// A page other than "" ("about", for example) opens that page of the view.
+func openSettings(app *application.App, srv *daemon.Server, u *updater, page string) {
 	settingsMu.Lock()
 	defer settingsMu.Unlock()
 	if settingsWin == nil {
-		settingsWin = newSettingsWindow(app, srv)
+		settingsWin = newSettingsWindow(app, srv, u)
 	}
 	cfg, err := loadSettings()
 	emitSettings(app, "settings:config", cfg)
 	if err != nil {
 		emitSettings(app, "settings:error", err.Error())
 	}
+	if page != "" {
+		settingsPage = page
+		emitSettings(app, "settings:page", page)
+	}
 	settingsWin.show()
+}
+
+// takeSettingsPage returns the page of the last openSettings call once.
+func takeSettingsPage() string {
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
+	p := settingsPage
+	settingsPage = ""
+	return p
 }
 
 type hooksResult struct {
@@ -75,14 +104,22 @@ type hooksResult struct {
 	Message string `json:"message"`
 }
 
-func registerSettingsEvents(app *application.App, srv *daemon.Server) {
+func registerSettingsEvents(app *application.App, srv *daemon.Server, u *updater) {
 	emit := func(name string, data any) { app.Event.Emit(name, data) }
+	app.Event.On("settings:update-get", func(*application.CustomEvent) { emit("settings:update", u.state()) })
+	app.Event.On("settings:update-check", func(*application.CustomEvent) { go u.check(context.Background()) })
+	app.Event.On("settings:update-install", func(*application.CustomEvent) { go installUpdate(app, srv, u) })
 	app.Event.On("settings:get", func(*application.CustomEvent) {
 		cfg, err := loadSettings()
 		emit("settings:config", cfg)
 		if err != nil {
 			emit("settings:error", err.Error())
 		}
+		if p := takeSettingsPage(); p != "" {
+			emit("settings:page", p)
+		}
+		emit("settings:update", u.state())
+		emit("settings:hooks-state", hooksInstalled())
 	})
 	app.Event.On("settings:save", func(e *application.CustomEvent) {
 		cfg, err := decodeConfig(e.Data)
@@ -104,6 +141,7 @@ func registerSettingsEvents(app *application.App, srv *daemon.Server) {
 	app.Event.On("settings:hooks", func(e *application.CustomEvent) {
 		action, _ := e.Data.(string)
 		msg, err := runHooks(action)
+		emit("settings:hooks-state", hooksInstalled())
 		if err != nil {
 			emit("settings:hooks-result", hooksResult{Message: err.Error()})
 			return
@@ -134,6 +172,9 @@ func decodeConfig(data any) (config.Config, error) {
 func saveSettings(srv *daemon.Server, cfg config.Config) error {
 	if cfg.Mode != "answer" && cfg.Mode != "notify" {
 		return fmt.Errorf("mode %q is not \"answer\" or \"notify\"", cfg.Mode)
+	}
+	if !config.ValidPosition(cfg.Position) {
+		return fmt.Errorf("position %q is not one of %s", cfg.Position, strings.Join(config.Positions, ", "))
 	}
 	if cfg.TimeoutMinutes <= 0 {
 		return errors.New("timeout must be more than 0 minutes")
@@ -224,6 +265,12 @@ func syncLoginItem(cfg config.Config) {
 	if err := loginSet(cfg.StartAtLogin); err != nil {
 		fmt.Fprintln(logw, "nudged: start at login:", err)
 	}
+}
+
+// hooksInstalled reports whether ~/.claude/settings.json has the nudged hooks.
+func hooksInstalled() bool {
+	home, err := os.UserHomeDir()
+	return err == nil && installer.Installed(filepath.Join(home, ".claude", "settings.json"))
 }
 
 // runHooks installs or removes the nudged hooks in ~/.claude/settings.json, as nudged install-hooks and uninstall-hooks do.

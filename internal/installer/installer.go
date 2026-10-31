@@ -277,3 +277,33 @@ func words(s string) ([]string, error) {
 	}
 	return out, nil
 }
+
+// Installed reports whether the settings file has a nudged hook for every event in Events.
+func Installed(settingsPath string) bool {
+	b, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return false
+	}
+	var s struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if json.Unmarshal(b, &s) != nil {
+		return false
+	}
+	for _, ev := range Events {
+		found := false
+		for _, g := range s.Hooks[ev] {
+			for _, h := range g.Hooks {
+				found = found || isNudged(h.Command, "hook")
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}

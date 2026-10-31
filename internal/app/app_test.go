@@ -82,7 +82,8 @@ func TestMenuItems(t *testing.T) {
 	want := []menuItem{
 		{"Pause", "Option+CmdOrCtrl+P"},
 		{"Settings…", "CmdOrCtrl+,"},
-		{"Quit", "CmdOrCtrl+Q"},
+		{"About nudged", ""},
+		{"Quit nudged", "CmdOrCtrl+Q"},
 	}
 	if !slices.Equal(menuItems, want) {
 		t.Fatalf("menu %+v", menuItems)

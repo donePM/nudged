@@ -1,10 +1,10 @@
 import { Events } from '@wailsio/runtime'
 import { onUnmounted, watch, type Ref } from 'vue'
 
-// useFit reports the height of the card el to the panel window, which then fits itself to the card.
-export function useFit(el: Ref<HTMLElement | null>) {
+// useFit reports the height of el to its window with the event name, and the window fits itself to el.
+export function useFit(el: Ref<HTMLElement | null>, name = 'panel:size') {
   const ro = new ResizeObserver(() => {
-    if (el.value) Events.Emit('panel:size', { height: Math.ceil(el.value.getBoundingClientRect().height) })
+    if (el.value) Events.Emit(name, { height: Math.ceil(el.value.getBoundingClientRect().height) })
   })
   watch(el, (now, old) => {
     if (old) ro.unobserve(old)

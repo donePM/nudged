@@ -9,6 +9,7 @@ import (
 	"github.com/donepm/nudged/internal/daemon"
 	"github.com/donepm/nudged/internal/proto"
 	"github.com/donepm/nudged/internal/usage"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestWaitingCountAndBadge(t *testing.T) {
@@ -33,7 +34,12 @@ func TestBuildPayload(t *testing.T) {
 		{ID: "b", Project: "p", Path: "/x/p", Status: "working", Term: "iTerm.app", TTY: "/dev/ttys001", Model: "opus", Effort: "high", ContextPct: 42, LastActivity: at},
 		{ID: "a", Status: "waiting"},
 	}
-	p := buildPayload(list, usage.Totals{InputTokens: 1, OutputTokens: 20, CacheCreationTokens: 300, CacheReadTokens: 4000, CostUSD: 1.5})
+	pending := []proto.PendingRequest{
+		{ID: "n", Kind: proto.Done, SessionID: "a"},
+		{ID: "1", Kind: proto.Permission, SessionID: "a", Payload: []byte(`{"tool_name":"Bash"}`)},
+		{ID: "2", Kind: proto.Question, SessionID: "a"},
+	}
+	p := buildPayload(list, pending, usage.Totals{InputTokens: 1, OutputTokens: 20, CacheCreationTokens: 300, CacheReadTokens: 4000, CostUSD: 1.5}, true)
 	b, err := json.Marshal(p)
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +63,15 @@ func TestBuildPayload(t *testing.T) {
 			t.Errorf("%s = %v, want %v", k, got.Sessions[0][k], v)
 		}
 	}
+	if _, ok := got.Sessions[0]["pending_kind"]; ok {
+		t.Error("session b has a pending kind")
+	}
+	if got.Sessions[1]["pending_kind"] != "permission" || got.Sessions[1]["pending_text"] != "Allow Bash?" {
+		t.Errorf("pending of a: %v", got.Sessions[1])
+	}
+	if !p.Paused {
+		t.Error("paused lost")
+	}
 	if _, ok := got.Sessions[0]["tty"]; ok {
 		t.Error("payload has tty")
 	}
@@ -66,12 +81,32 @@ func TestBuildPayload(t *testing.T) {
 }
 
 func TestBuildPayloadEmpty(t *testing.T) {
-	b, err := json.Marshal(buildPayload(nil, usage.Totals{}))
+	b, err := json.Marshal(buildPayload(nil, nil, usage.Totals{}, false))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(b), `"sessions":[]`) {
 		t.Errorf("got %s, want sessions []", b)
+	}
+}
+
+func TestPendingText(t *testing.T) {
+	for want, req := range map[string]proto.PendingRequest{
+		"Allow Edit?":      {Kind: proto.Permission, Payload: []byte(`{"tool_name":"Edit"}`)},
+		"Needs permission": {Kind: proto.Permission},
+		"Which DB?":        {Kind: proto.Question, Payload: []byte(`{"tool_input":{"questions":[{"question":"Which DB?"}]}}`)},
+		"Asks a question":  {Kind: proto.Question},
+	} {
+		if got := pendingText(req); got != want {
+			t.Errorf("%s: %q", want, got)
+		}
+	}
+}
+
+func TestSessionsOptions(t *testing.T) {
+	o := sessionsOptions()
+	if o.Width != 380 || o.BackgroundType != application.BackgroundTypeTranslucent || !o.HideOnFocusLost || !o.Hidden {
+		t.Fatalf("options %+v", o)
 	}
 }
 

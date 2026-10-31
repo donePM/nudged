@@ -296,3 +296,22 @@ func TestWords(t *testing.T) {
 		t.Error("false match")
 	}
 }
+
+func TestInstalled(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if Installed(path) {
+		t.Fatal("no file: installed")
+	}
+	if err := Install(path, "/Applications/nudged.app/Contents/MacOS/nudged"); err != nil {
+		t.Fatal(err)
+	}
+	if !Installed(path) {
+		t.Fatal("after install: not installed")
+	}
+	if err := Uninstall(path); err != nil {
+		t.Fatal(err)
+	}
+	if Installed(path) {
+		t.Fatal("after uninstall: installed")
+	}
+}

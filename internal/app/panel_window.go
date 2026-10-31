@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/donepm/nudged/internal/config"
@@ -20,7 +21,8 @@ const panelName = "panel"
 type panelShow struct {
 	Request proto.PendingRequest `json:"request"`
 	Others  int                  `json:"others"`
-	Mode    string               `json:"mode"` // "answer" or "notify"
+	Mode    string               `json:"mode"`     // "answer" or "notify"
+	Corner  string               `json:"position"` // config.Positions, where the card sits
 	// Permission is set when Request.Kind is proto.Permission.
 	Permission *permissionData `json:"permission,omitempty"`
 	// Notice is set when Request.Kind is a notice kind.
@@ -59,7 +61,7 @@ func init() {
 	application.RegisterEvent[panelSize]("panel:size")
 }
 
-// The panel is a small card in the top right corner of the work area, like a macOS notification.
+// The panel is a small card in a corner of the work area (top right by default), like a macOS notification.
 // The page reports the card height, and the panel grows or shrinks to it within the limits.
 const panelWidth, panelHeight, panelMargin = 340, 72, 10
 const panelMinHeight, panelMaxHeight = 40, 560
@@ -81,13 +83,23 @@ func panelOptions(view string, s *application.Screen) application.WebviewWindowO
 	}
 	if s != nil {
 		o.InitialPosition, o.Screen = application.WindowXY, s
-		o.X, o.Y = panelX(s), panelMargin
+		o.X, o.Y = panelXY(s, "top-right", panelHeight)
 	}
 	return o
 }
 
-// panelX is the x of the panel in the work area of s.
-func panelX(s *application.Screen) int { return max(0, s.WorkArea.Width-panelWidth-panelMargin) }
+// panelXY is the place of a panel with height h in corner pos of the work area of s. y counts from the top.
+// An unknown pos is the top right corner.
+func panelXY(s *application.Screen, pos string, h int) (x, y int) {
+	x, y = max(0, s.WorkArea.Width-panelWidth-panelMargin), panelMargin
+	if strings.HasSuffix(pos, "-left") {
+		x = panelMargin
+	}
+	if strings.HasPrefix(pos, "bottom-") {
+		y = max(0, s.WorkArea.Height-h-panelMargin)
+	}
+	return x, y
+}
 
 // panelFit clamps the card height h to the panel limits.
 func panelFit(h int) int { return min(max(h, panelMinHeight), panelMaxHeight) }
@@ -97,16 +109,20 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	view := viewFor("")
 	w := app.Window.NewWithOptions(panelOptions(view, app.Screen.GetPrimary()))
 	height := panelHeight // only the main thread uses height
-	// place sizes the panel and puts it in the top right corner. A resize keeps the bottom left corner, so place runs after each one.
+	var cur *panelShow    // only the main thread uses cur and view
+	// place sizes the panel and puts it in the corner of the config. A resize keeps the bottom left corner, so place runs after each one.
 	place := func() {
 		w.SetSize(panelWidth, height)
 		if s := app.Screen.GetPrimary(); s != nil {
-			w.SetRelativePosition(panelX(s), panelMargin)
+			pos := ""
+			if cur != nil {
+				pos = cur.Corner
+			}
+			w.SetRelativePosition(panelXY(s, pos, height))
 		}
 	}
 	// The notice can already be gone, for example after the next hook of its session.
 	dismiss := func(id string) { srv.Dismiss(id) }
-	var cur *panelShow // only the main thread uses cur and view
 	app.Event.On("panel:ready", func(e *application.CustomEvent) {
 		application.InvokeSync(func() {
 			if cur != nil && e.Sender == panelName {
@@ -233,7 +249,7 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 		}
 		var s *panelShow
 		if req, others, ok := top(list, cfg); ok {
-			s = &panelShow{Request: req, Others: others, Mode: cfg.Mode}
+			s = &panelShow{Request: req, Others: others, Mode: cfg.Mode, Corner: cfg.Position}
 			if panelView(s) == "Generic" {
 				g := genericPanel(req)
 				s.Generic = &g

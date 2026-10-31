@@ -76,9 +76,10 @@ func TestRunPanelSounds(t *testing.T) {
 func TestRunPanelMode(t *testing.T) {
 	cfg := config.Default()
 	cfg.Mode = "notify"
+	cfg.Position = "bottom-left"
 	changes, shows := loop(t, nil, cfg)
 	changes <- []proto.PendingRequest{{ID: "1", Kind: proto.Permission}}
-	if s := next(t, shows); s == nil || s.Mode != "notify" || s.Request.ID != "1" {
+	if s := next(t, shows); s == nil || s.Mode != "notify" || s.Corner != "bottom-left" || s.Request.ID != "1" {
 		t.Fatalf("show %+v", s)
 	}
 }
@@ -311,8 +312,23 @@ func TestPanelOptions(t *testing.T) {
 	if o.InitialPosition != application.WindowXY || o.Screen != s || o.X != 1512-340-10 || o.Y != 10 {
 		t.Fatalf("top right: position %v screen %v x %d y %d", o.InitialPosition, o.Screen, o.X, o.Y)
 	}
-	if x := panelX(&application.Screen{WorkArea: application.Rect{Width: 200}}); x != 0 {
+	if x, _ := panelXY(&application.Screen{WorkArea: application.Rect{Width: 200}}, "top-right", 72); x != 0 {
 		t.Fatalf("narrow screen x %d", x)
+	}
+}
+
+func TestPanelXY(t *testing.T) {
+	s := &application.Screen{WorkArea: application.Rect{Width: 1512, Height: 920}}
+	for pos, want := range map[string][2]int{
+		"top-right":    {1512 - 340 - 10, 10},
+		"top-left":     {10, 10},
+		"bottom-right": {1512 - 340 - 10, 920 - 100 - 10},
+		"bottom-left":  {10, 920 - 100 - 10},
+		"":             {1512 - 340 - 10, 10},
+	} {
+		if x, y := panelXY(s, pos, 100); x != want[0] || y != want[1] {
+			t.Errorf("%q: %d,%d want %v", pos, x, y, want)
+		}
 	}
 }
 

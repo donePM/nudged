@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import '../controls.css'
 import { Events } from '@wailsio/runtime'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useFit } from '../panel'
 
 interface Session {
   project: string
@@ -12,83 +14,156 @@ interface Session {
   context_pct: number
   session_id: string
   last_activity: string
+  pending_kind?: string
+  pending_text?: string
 }
 
 interface Payload {
   sessions: Session[]
   usage: { tokens: number; cost_usd: number }
+  paused: boolean
 }
 
-const data = ref<Payload>({ sessions: [], usage: { tokens: 0, cost_usd: 0 } })
-let off = () => {}
+const data = ref<Payload>({ sessions: [], usage: { tokens: 0, cost_usd: 0 }, paused: false })
+const now = ref(Date.now())
+const root = ref<HTMLElement | null>(null)
+useFit(root, 'sessions:size')
 
+let off = () => {}
+let tick: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
-  off = Events.On('sessions:update', (e) => { data.value = e.data as Payload })
+  off = Events.On('sessions:update', (e) => { data.value = e.data as Payload; now.value = Date.now() })
+  tick = setInterval(() => { now.value = Date.now() }, 30_000)
   Events.Emit('sessions:ready')
 })
-onUnmounted(() => off())
+onUnmounted(() => { off(); clearInterval(tick) })
 
+// group sorts a session: 0 needs you, 1 working, 2 idle or done.
+function group(s: Session): number {
+  if (s.pending_kind || s.status === 'waiting') return 0
+  return s.status === 'working' ? 1 : 2
+}
+
+const sorted = computed(() =>
+  [...data.value.sessions].sort((a, b) => group(a) - group(b) || b.last_activity.localeCompare(a.last_activity)))
+const count = (g: number) => data.value.sessions.filter((s) => group(s) === g).length
+
+function kind(s: Session): string {
+  if (s.pending_kind === 'question') return 'question'
+  if (group(s) === 0) return 'permission'
+  return s.status === 'working' ? 'working' : 'idle'
+}
+
+const ring = 50.3
+function ringColor(p: number) {
+  return p >= 85 ? 'var(--permission)' : p >= 60 ? 'var(--waits)' : 'var(--muted)'
+}
+
+function ago(iso: string): string {
+  const s = Math.max(0, (now.value - Date.parse(iso)) / 1000)
+  if (!Number.isFinite(s) || s < 60) return 'now'
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  if (s < 86400) return `${Math.floor(s / 3600)}h`
+  return `${Math.floor(s / 86400)}d`
+}
+
+function tokens(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} M`
+  if (n >= 1e3) return `${Math.round(n / 1e3)} k`
+  return String(n)
+}
+
+const meta = (s: Session) => [s.model, s.effort, s.term].filter(Boolean).join(' · ')
 const focus = (id: string) => Events.Emit('sessions:focus', id)
 </script>
 
 <template>
-  <main>
-    <div class="list">
-      <table>
-      <thead>
-        <tr>
-          <th>Project</th><th>Path</th><th>Status</th><th>Terminal</th><th>Model</th><th>Effort</th><th>Context</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="s in data.sessions" :key="s.session_id" :class="s.status" tabindex="0"
-            @click="focus(s.session_id)" @keydown.enter="focus(s.session_id)" @keydown.space.prevent="focus(s.session_id)">
-          <td>{{ s.project }}</td>
-          <td class="path" :title="s.path">{{ s.path }}</td>
-          <td>{{ s.status }}</td>
-          <td>{{ s.term }}</td>
-          <td>{{ s.model || '—' }}</td>
-          <td>{{ s.effort || '—' }}</td>
-          <td>{{ s.context_pct }} %</td>
-        </tr>
-        <tr v-if="!data.sessions.length"><td colspan="7" class="empty">No sessions</td></tr>
-      </tbody>
-    </table>
-    </div>
+  <div ref="root" class="pop">
+    <header>
+      <div class="title">
+        <h1>Sessions</h1>
+        <span class="hint">{{ data.sessions.length }} running</span>
+      </div>
+      <div v-if="data.sessions.length" class="chips">
+        <span v-if="count(0)" class="chip need">{{ count(0) }} needs you</span>
+        <span v-if="count(1)" class="chip work">{{ count(1) }} working</span>
+        <span v-if="count(2)" class="chip">{{ count(2) }} idle</span>
+      </div>
+    </header>
+
+    <ul v-if="sorted.length" class="list">
+      <li v-for="s in sorted" :key="s.session_id" class="row" tabindex="0" :title="s.path"
+        @click="focus(s.session_id)" @keydown.enter="focus(s.session_id)" @keydown.space.prevent="focus(s.session_id)">
+        <span :class="['dot', kind(s)]" aria-hidden="true" />
+        <div class="lbl">
+          <span class="name">{{ s.project }} <em v-if="s.pending_text">{{ s.pending_text }}</em></span>
+          <small>{{ meta(s) || s.status }}</small>
+        </div>
+        <svg class="ring" viewBox="0 0 20 20" role="img" :aria-label="`Context ${s.context_pct} %`">
+          <title>Context {{ s.context_pct }} %</title>
+          <circle cx="10" cy="10" r="8" fill="none" stroke="var(--track)" stroke-width="2.5" />
+          <circle cx="10" cy="10" r="8" fill="none" :stroke="ringColor(s.context_pct)" stroke-width="2.5"
+            stroke-linecap="round" :stroke-dasharray="ring"
+            :stroke-dashoffset="ring * (1 - Math.min(100, s.context_pct) / 100)" transform="rotate(-90 10 10)" />
+        </svg>
+        <span class="time">{{ ago(s.last_activity) }}</span>
+      </li>
+    </ul>
+    <p v-else class="empty">No Claude Code sessions.<br>Start <code>claude</code> in a terminal.</p>
+
     <footer>
-      Today: {{ data.usage.tokens.toLocaleString() }} tokens · ≈ ${{ data.usage.cost_usd.toFixed(2) }}
+      <span class="hint">Today {{ tokens(data.usage.tokens) }} tokens · ${{ data.usage.cost_usd.toFixed(2) }}</span>
+      <span class="icons">
+        <button type="button" class="ico" :aria-pressed="data.paused" :title="data.paused ? 'Resume' : 'Pause'"
+          :aria-label="data.paused ? 'Resume nudged' : 'Pause nudged'" @click="Events.Emit('sessions:pause')">
+          <svg v-if="data.paused" viewBox="0 0 16 16"><path d="M5 3.5v9l7.5-4.5z" fill="currentColor" /></svg>
+          <svg v-else viewBox="0 0 16 16"><rect x="4" y="3.5" width="2.6" height="9" rx="1" fill="currentColor" /><rect x="9.4" y="3.5" width="2.6" height="9" rx="1" fill="currentColor" /></svg>
+        </button>
+        <button type="button" class="ico" title="Settings" aria-label="Settings" @click="Events.Emit('sessions:settings')">
+          <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        </button>
+      </span>
     </footer>
-  </main>
+  </div>
 </template>
 
 <style>
-body { margin: 0; }
+body { background: var(--win); }
 </style>
 
 <style scoped>
-main {
-  font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #1d1d1f;
-  background: #f5f5f7;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-.list { flex: 1; overflow: auto; min-height: 0; }
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 4px 8px; white-space: nowrap; }
-th { font-weight: 600; color: #6e6e73; border-bottom: 1px solid #d2d2d7; }
-tbody tr { cursor: pointer; }
-tbody tr:hover, tbody tr:focus { background: rgba(0, 0, 0, 0.06); outline: none; }
-tr.waiting td { font-weight: 600; color: #bf4800; }
-.path { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.empty { color: #6e6e73; text-align: center; cursor: default; }
-footer { margin-top: auto; padding: 6px 8px; border-top: 1px solid #d2d2d7; color: #6e6e73; }
-@media (prefers-color-scheme: dark) {
-  main { color: #f5f5f7; background: #1e1e1e; }
-  th, .empty, footer { color: #a1a1a6; }
-  th, footer { border-color: #3a3a3c; }
-  tbody tr:hover, tbody tr:focus { background: rgba(255, 255, 255, 0.08); }
-  tr.waiting td { color: #ff9f0a; }
-}
+.pop { display: flex; flex-direction: column; }
+header { padding: 12px 14px 8px; display: grid; gap: 8px; }
+.title { display: flex; align-items: baseline; justify-content: space-between; }
+h1 { margin: 0; font-size: 14px; font-weight: 700; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--ctl); color: var(--muted); }
+.chip.need { background: color-mix(in srgb, var(--permission) 15%, transparent); color: var(--permission); }
+.chip.work { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+
+.list { list-style: none; margin: 0; padding: 0 6px 6px; display: grid; gap: 1px; max-height: 520px; overflow: auto; }
+.row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.row:hover, .row:focus-visible { background: var(--sel); outline: none; }
+.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--faint); }
+.dot.permission { background: var(--permission); }
+.dot.question { background: var(--question); }
+.dot.working { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .dot.working { animation: none; } }
+.lbl { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.name em { font-style: normal; font-weight: 400; color: var(--muted); }
+.lbl small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ring { width: 18px; height: 18px; flex: none; }
+.time { width: 28px; text-align: right; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
+
+.empty { margin: 0; padding: 18px 14px 22px; text-align: center; color: var(--muted); }
+.empty code { font: 12px ui-monospace, Menlo, monospace; }
+
+footer { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px 7px 14px; box-shadow: inset 0 0.5px 0 var(--sep); }
+.icons { display: flex; gap: 2px; }
+.ico { width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.ico:hover { background: var(--sel); color: var(--ink); }
+.ico[aria-pressed="true"] { color: var(--accent); }
+.ico svg { width: 15px; height: 15px; }
 </style>

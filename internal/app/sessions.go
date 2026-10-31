@@ -24,6 +24,9 @@ type sessionRow struct {
 	ContextPct   int       `json:"context_pct"`
 	SessionID    string    `json:"session_id"`
 	LastActivity time.Time `json:"last_activity"`
+	// PendingKind and PendingText describe the open permission or question of the session, if there is one.
+	PendingKind string `json:"pending_kind,omitempty"`
+	PendingText string `json:"pending_text,omitempty"`
 }
 
 type usagePayload struct {
@@ -34,6 +37,7 @@ type usagePayload struct {
 type sessionsPayload struct {
 	Sessions []sessionRow `json:"sessions"`
 	Usage    usagePayload `json:"usage"`
+	Paused   bool         `json:"paused"`
 }
 
 func waitingCount(list []proto.Session) int {
@@ -53,17 +57,47 @@ func badgeLabel(n int) string {
 	return strconv.Itoa(n)
 }
 
+// pendingText is the short line the session list shows for an open request: "Allow Bash?" or the question.
+func pendingText(req proto.PendingRequest) string {
+	g := genericPanel(req)
+	switch {
+	case req.Kind == proto.Permission && g.Tool != "":
+		return "Allow " + g.Tool + "?"
+	case req.Kind == proto.Permission:
+		return "Needs permission"
+	case g.Question != "":
+		return g.Question
+	}
+	return "Asks a question"
+}
+
 // buildPayload keeps the order of list. Registry.List already sorts it.
-func buildPayload(list []proto.Session, t usage.Totals) sessionsPayload {
+// Each session gets the first open permission or question of pending with its session id.
+func buildPayload(list []proto.Session, pending []proto.PendingRequest, t usage.Totals, paused bool) sessionsPayload {
 	rows := make([]sessionRow, 0, len(list))
 	for _, s := range list {
-		rows = append(rows, sessionRow{s.Project, s.Path, s.Status, s.Term, s.Model, s.Effort, s.ContextPct, s.ID, s.LastActivity})
+		r := sessionRow{
+			Project: s.Project, Path: s.Path, Status: s.Status, Term: s.Term, Model: s.Model, Effort: s.Effort,
+			ContextPct: s.ContextPct, SessionID: s.ID, LastActivity: s.LastActivity,
+		}
+		for _, p := range pending {
+			if p.SessionID == s.ID && (p.Kind == proto.Permission || p.Kind == proto.Question) {
+				r.PendingKind, r.PendingText = p.Kind, pendingText(p)
+				break
+			}
+		}
+		rows = append(rows, r)
 	}
 	return sessionsPayload{rows, usagePayload{
 		Tokens:  t.InputTokens + t.OutputTokens + t.CacheCreationTokens + t.CacheReadTokens,
 		CostUSD: t.CostUSD,
-	}}
+	}, paused}
 }
+
+// The session list is a popover under the tray icon. The page reports its height, like the panel does.
+const sessionsWidth, sessionsMinHeight, sessionsMaxHeight = 380, 120, 640
+
+func init() { application.RegisterEvent[panelSize]("sessions:size") }
 
 // focusSession takes the TTY from the registry, never from the webview.
 func focusSession(reg *daemon.Registry, id string, jump func(tty, term string)) {
@@ -75,21 +109,54 @@ func focusSession(reg *daemon.Registry, id string, jump func(tty, term string)) 
 	}
 }
 
-// setupSessions makes the session list window, attaches it to the tray and keeps it and the badge up to date.
-func setupSessions(app *application.App, tray *application.SystemTray, srv *daemon.Server) {
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
+// sessionsOptions are the options of the session list window.
+func sessionsOptions() application.WebviewWindowOptions {
+	return application.WebviewWindowOptions{
 		Name:            "sessions",
 		Title:           "Sessions",
 		URL:             "/#/Sessions",
-		Width:           640,
-		Height:          360,
+		Width:           sessionsWidth,
+		Height:          sessionsMinHeight,
 		Hidden:          true,
 		Frameless:       true,
 		DisableResize:   true,
 		HideOnEscape:    true,
 		HideOnFocusLost: true,
-	})
+		BackgroundType:  application.BackgroundTypeTranslucent,
+		Mac: application.MacWindow{
+			Backdrop: application.MacBackdropTranslucent, CornerRadius: 12,
+		},
+	}
+}
+
+// setupSessions makes the session list window, attaches it to the tray and keeps it and the badge up to date.
+// onPause and onSettings run the Pause and Settings items of the tray menu.
+func setupSessions(app *application.App, tray *application.SystemTray, srv *daemon.Server, onPause, onSettings func()) {
+	win := app.Window.NewWithOptions(sessionsOptions())
 	tray.AttachWindow(win).WindowOffset(5)
+	height := sessionsMinHeight // only the main thread uses height
+	app.Event.On("sessions:size", func(e *application.CustomEvent) {
+		z, ok := e.Data.(panelSize)
+		if e.Sender != "sessions" || !ok {
+			return
+		}
+		application.InvokeSync(func() {
+			h := min(max(z.Height, sessionsMinHeight), sessionsMaxHeight)
+			if h == height {
+				return
+			}
+			height = h
+			win.SetSize(sessionsWidth, h)
+			if win.IsVisible() { // a resize keeps the bottom left corner, so dock the window under the icon again
+				_ = tray.PositionWindow(win, 5)
+			}
+		})
+	})
+	app.Event.On("sessions:pause", func(*application.CustomEvent) { onPause() })
+	app.Event.On("sessions:settings", func(*application.CustomEvent) {
+		application.InvokeSync(func() { win.Hide() })
+		onSettings()
+	})
 
 	ready := make(chan struct{}, 1)
 	app.Event.On("sessions:ready", func(*application.CustomEvent) {
@@ -134,7 +201,7 @@ func setupSessions(app *application.App, tray *application.SystemTray, srv *daem
 				badge = l
 				tray.SetLabel(l)
 			}
-			app.Event.Emit("sessions:update", buildPayload(list, totals))
+			app.Event.Emit("sessions:update", buildPayload(list, srv.Pending(), totals, srv.Paused()))
 		}
 	}()
 }

@@ -28,6 +28,7 @@ func usage() {
 }
 
 func run(args []string) int {
+	app.Version = version
 	if len(args) == 0 {
 		return startApp()
 	}

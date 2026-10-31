@@ -77,7 +77,16 @@ When you answer in the terminal, the panel closes.
 - The list shows the tokens and the cost of today (≈ API prices) at the bottom.
 - **Pause** (⌥⌘P, global hotkey from any app): nudged ignores all events, and Claude Code asks in the terminal. Press ⌥⌘P again to resume.
 - **Settings** (⌘,): mode, timeout, show, sound, and hide time per event, the hook buttons, and the "Start at login" switch.
+- **About nudged**: the version.
+- **Update to x.y.z…** shows when a newer release is out. A click runs `brew upgrade --cask donepm/tap/nudged` and starts the new version.
 - **Quit** (⌘Q).
+
+## Updates
+
+With `check_updates` on (the default), nudged asks the GitHub API for the newest release 10 seconds after start and then once a day.
+Settings shows the version and has a "Check now" button.
+The update runs `brew update` and `brew upgrade --cask donepm/tap/nudged`, so it needs the Homebrew install.
+A build from source (version `dev`) does not check by itself.
 
 ## Start at login
 
@@ -96,6 +105,8 @@ nudged creates the file with the defaults on first use and keeps your hand edits
 mode = "answer"        # "answer" (answer in the panel) or "notify" (a click jumps to the terminal)
 timeout_minutes = 30   # 1 to 30 minutes until a held request ends and Claude Code asks in the terminal
 start_at_login = true  # start nudged at login with a LaunchAgent
+check_updates = true   # check GitHub for a new release once a day
+position = "top-right" # corner of the cards: "top-right", "top-left", "bottom-right" or "bottom-left"
 
 [events.permission]    # permission requests
 show = true            # show a panel

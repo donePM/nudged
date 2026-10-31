@@ -24,7 +24,7 @@ func (w *fakeWindow) show() { w.shows++ }
 func TestOpenSettingsOneWindow(t *testing.T) {
 	var made []*fakeWindow
 	old := newSettingsWindow
-	newSettingsWindow = func(*application.App, *daemon.Server) settingsWindow {
+	newSettingsWindow = func(*application.App, *daemon.Server, *updater) settingsWindow {
 		w := &fakeWindow{}
 		made = append(made, w)
 		return w
@@ -34,8 +34,8 @@ func TestOpenSettingsOneWindow(t *testing.T) {
 	t.Cleanup(func() { newSettingsWindow, settingsWin, emitSettings = old, nil, oldEmit })
 	sockPath(t)
 
-	openSettings(nil, nil)
-	openSettings(nil, nil)
+	openSettings(nil, nil, nil, "")
+	openSettings(nil, nil, nil, "")
 	if len(made) != 1 {
 		t.Fatalf("%d windows, want 1", len(made))
 	}
@@ -44,6 +44,33 @@ func TestOpenSettingsOneWindow(t *testing.T) {
 	}
 	if settingsURL != "/#/Settings" {
 		t.Fatalf("url %q", settingsURL)
+	}
+}
+
+func TestOpenSettingsPage(t *testing.T) {
+	sockPath(t)
+	oldNew, oldEmit := newSettingsWindow, emitSettings
+	newSettingsWindow = func(*application.App, *daemon.Server, *updater) settingsWindow { return &fakeWindow{} }
+	var pages []any
+	emitSettings = func(_ *application.App, name string, data any) {
+		if name == "settings:page" {
+			pages = append(pages, data)
+		}
+	}
+	t.Cleanup(func() { newSettingsWindow, settingsWin, emitSettings, settingsPage = oldNew, nil, oldEmit, "" })
+	openSettings(nil, nil, nil, "")
+	openSettings(nil, nil, nil, "about")
+	if len(pages) != 1 || pages[0] != "about" {
+		t.Fatalf("pages %v", pages)
+	}
+	if p := takeSettingsPage(); p != "about" {
+		t.Fatalf("take %q", p)
+	}
+	if p := takeSettingsPage(); p != "" {
+		t.Fatalf("second take %q", p)
+	}
+	if o := settingsOptions(); o.Width != 680 || o.Height != 520 || o.Mac.TitleBar != application.MacTitleBarHiddenInset {
+		t.Fatalf("options %+v", o)
 	}
 }
 
@@ -84,6 +111,7 @@ func TestDecodeConfigKeepsFields(t *testing.T) {
 func TestSaveSettingsRejects(t *testing.T) {
 	cases := map[string]func(*config.Config){
 		"mode":       func(c *config.Config) { c.Mode = "loud" },
+		"position":   func(c *config.Config) { c.Position = "middle" },
 		"timeout 0":  func(c *config.Config) { c.TimeoutMinutes = 0 },
 		"timeout-1":  func(c *config.Config) { c.TimeoutMinutes = -1 },
 		"timeout 31": func(c *config.Config) { c.TimeoutMinutes = 31 },
@@ -264,7 +292,7 @@ func TestSaveSettingsMaxTimeout(t *testing.T) {
 func TestOpenSettingsReloadsConfig(t *testing.T) {
 	sockPath(t)
 	oldNew, oldEmit := newSettingsWindow, emitSettings
-	newSettingsWindow = func(*application.App, *daemon.Server) settingsWindow { return &fakeWindow{} }
+	newSettingsWindow = func(*application.App, *daemon.Server, *updater) settingsWindow { return &fakeWindow{} }
 	var got []int
 	emitSettings = func(_ *application.App, name string, data any) {
 		if name == "settings:config" {
@@ -278,12 +306,12 @@ func TestOpenSettingsReloadsConfig(t *testing.T) {
 	if err := config.Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	openSettings(nil, nil)
+	openSettings(nil, nil, nil, "")
 	cfg.TimeoutMinutes = 9
 	if err := config.Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	openSettings(nil, nil)
+	openSettings(nil, nil, nil, "")
 	if !slices.Equal(got, []int{5, 9}) {
 		t.Fatalf("emitted %v, want [5 9]", got)
 	}
@@ -294,13 +322,13 @@ func TestSettingsViewSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"`Test ${r.label} sound`", `max="30"`} {
+	for _, want := range []string{"Events.Emit('settings:sound', r.key)", "timeoutSteps = [1, 2, 5, 10, 15, 20, 30]", "https://done.pm", "cfg.Position = c.value"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("Settings.vue lacks %s", want)
 		}
 	}
-	if strings.Contains(string(b), `max="1440"`) {
-		t.Error(`Settings.vue still has max="1440"`)
+	if strings.Contains(string(b), "1440") {
+		t.Error("Settings.vue still allows 1440 minutes")
 	}
 }
 

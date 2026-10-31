@@ -73,7 +73,7 @@ func TestLoadCreatesDefaults(t *testing.T) {
 
 func TestDefault(t *testing.T) {
 	d := Default()
-	if d.Mode != "answer" || d.TimeoutMinutes != 30 || !d.StartAtLogin {
+	if d.Mode != "answer" || d.TimeoutMinutes != 30 || !d.StartAtLogin || !d.CheckUpdates || d.Position != "top-right" {
 		t.Fatalf("got %+v", d)
 	}
 	want := Events{
@@ -131,8 +131,9 @@ func TestHandEditsKept(t *testing.T) {
 
 func TestLoadErrorKeepsFile(t *testing.T) {
 	for name, content := range map[string]string{
-		"broken": "timeout_minutes = = 5\n[events\n",
-		"mode":   "mode = \"loud\"\n",
+		"broken":   "timeout_minutes = = 5\n[events\n",
+		"mode":     "mode = \"loud\"\n",
+		"position": "position = \"middle\"\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := setHome(t)

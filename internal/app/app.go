@@ -2,6 +2,7 @@
 package app
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/donepm/nudged/frontend"
 	"github.com/donepm/nudged/internal/config"
@@ -29,7 +31,8 @@ type menuItem struct{ Label, Accelerator string }
 var menuItems = []menuItem{
 	{"Pause", "Option+CmdOrCtrl+P"},
 	{"Settings…", "CmdOrCtrl+,"},
-	{"Quit", "CmdOrCtrl+Q"},
+	{"About nudged", ""},
+	{"Quit nudged", "CmdOrCtrl+Q"},
 }
 
 // registerHotkey registers ⌥⌘P and calls onPress for each key press. hotkey_darwin.go sets it.
@@ -105,14 +108,28 @@ func run(socket string) int {
 	}
 	syncLoginItem(cfg)
 	app := application.New(application.Options{
-		Name:       "nudged",
-		Mac:        application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},
-		Assets:     application.AssetOptions{Handler: assets()},
-		OnShutdown: func() { srv.Close() },
+		Name:        "nudged",
+		Description: aboutText(),
+		Mac:         application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},
+		Assets:      application.AssetOptions{Handler: assets()},
+		OnShutdown:  func() { srv.Close() },
 	})
 	tray := app.SystemTray.New()
 	tray.SetTemplateIcon(runningIcon)
 	menu := app.NewMenu()
+	// The update item stays hidden until a check finds a newer release.
+	updateItem := menu.Add("").SetHidden(true)
+	updates := newUpdater(func(i updateInfo) {
+		application.InvokeAsync(func() {
+			updateItem.SetLabel(updateLabel(i)).SetHidden(!i.Update).SetEnabled(!i.Checking)
+		})
+		app.Event.Emit("settings:update", i)
+	})
+	updateItem.OnClick(func(*application.Context) { go installUpdate(app, srv, updates) })
+	menu.AddSeparator()
+	updateCtx, stopUpdates := context.WithCancel(context.Background())
+	defer stopUpdates()
+	go runUpdateChecks(updateCtx, updates, config.Load, 10*time.Second)
 	var pauseItem *application.MenuItem
 	pause := func() {
 		application.InvokeSync(func() {
@@ -121,7 +138,8 @@ func run(socket string) int {
 	}
 	actions := []func(*application.Context){
 		func(*application.Context) { pause() },
-		func(*application.Context) { openSettings(app, srv) },
+		func(*application.Context) { openSettings(app, srv, updates, "") },
+		func(*application.Context) { openSettings(app, srv, updates, "about") },
 		func(*application.Context) { quit(srv, app.Quit) },
 	}
 	for i, it := range menuItems {
@@ -129,9 +147,12 @@ func run(socket string) int {
 		if i == 0 {
 			pauseItem = item
 		}
+		if i == len(menuItems)-2 {
+			menu.AddSeparator()
+		}
 	}
 	tray.SetMenu(menu)
-	setupSessions(app, tray, srv)
+	setupSessions(app, tray, srv, pause, func() { openSettings(app, srv, updates, "") })
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		startPanel(app, srv, cfg)
 		startQuestion(app, srv)
@@ -149,4 +170,34 @@ func run(socket string) int {
 		return 1
 	}
 	return 0
+}
+
+// aboutText is the app description.
+func aboutText() string {
+	return "Version " + Version + "\nTray app and hooks for Claude Code.\nnudged is a service by donePM."
+}
+
+// updateLabel is the label of the update item for state i.
+func updateLabel(i updateInfo) string {
+	if i.Checking {
+		return "Updating to " + i.Latest + "…"
+	}
+	return "Update to " + i.Latest + "…"
+}
+
+// installUpdate installs the newest release, starts the new app and quits. On error the settings view and the log show it.
+func installUpdate(app *application.App, srv *daemon.Server, u *updater) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	if !u.apply(ctx) {
+		if e := u.state().Error; e != "" {
+			fmt.Fprintln(logw, "nudged: update:", e)
+		}
+		return
+	}
+	if err := relaunch(); err != nil {
+		u.set(func(i *updateInfo) { i.Error = "installed, but restart failed: " + err.Error() })
+		return
+	}
+	application.InvokeSync(func() { quit(srv, app.Quit) })
 }

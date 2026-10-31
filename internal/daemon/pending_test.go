@@ -139,10 +139,20 @@ func TestAnswer(t *testing.T) {
 			t.Fatalf("%s: reply %+v", name, rep)
 		}
 	}
+	bad, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bad.Close()
+	bad.Write([]byte(`{"kind":"answer","id":"1","payload":{bad}}` + "\n"))
+	var rep proto.Reply
+	if err := proto.ReadLine(bufio.NewReader(bad), &rep); err != nil || rep.OK || rep.Error == "" {
+		t.Fatalf("bad payload: reply %+v, err %v", rep, err)
+	}
 	waitPending(t, path, 1)
 	noReply(t, ch, 0)
 
-	rep := send(t, path, proto.Request{Kind: proto.Answer, ID: "1", Payload: json.RawMessage(`{"decision":"allow"}`)})
+	rep = send(t, path, proto.Request{Kind: proto.Answer, ID: "1", Payload: json.RawMessage(`{"decision":"allow"}`)})
 	if b, _ := json.Marshal(rep); string(b) != `{"ok":true}` {
 		t.Fatalf("reply %s", b)
 	}

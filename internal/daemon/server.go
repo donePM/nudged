@@ -84,6 +84,8 @@ func (s *Server) handle(conn net.Conn) {
 	r := bufio.NewReader(conn)
 	var req proto.Request
 	if proto.ReadLine(r, &req) != nil {
+		// The write fails at once when the deadline passed or the client left.
+		proto.WriteLine(conn, proto.Reply{Error: "bad request line"})
 		return
 	}
 	rep, h := s.apply(req)

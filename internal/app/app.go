@@ -111,6 +111,7 @@ func run(socket string) int {
 		fmt.Fprintln(os.Stderr, "nudged:", err)
 		return 1
 	}
+	syncLoginItem(cfg)
 	app := application.New(application.Options{
 		Name:       "nudged",
 		Mac:        application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},

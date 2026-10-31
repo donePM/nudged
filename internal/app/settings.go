@@ -211,6 +211,21 @@ func setLoginItem(on bool) error {
 	return loginitem.Enable(bin)
 }
 
+var (
+	loginEnabled = loginitem.Enabled
+	loginSet     = setLoginItem
+)
+
+// syncLoginItem makes the LaunchAgent plist match cfg.StartAtLogin. On error it writes one line to logw.
+func syncLoginItem(cfg config.Config) {
+	if cfg.StartAtLogin == loginEnabled() {
+		return
+	}
+	if err := loginSet(cfg.StartAtLogin); err != nil {
+		fmt.Fprintln(logw, "nudged: start at login:", err)
+	}
+}
+
 // runHooks installs or removes the nudged hooks in ~/.claude/settings.json, as nudged install-hooks and uninstall-hooks do.
 func runHooks(action string) (string, error) {
 	home, err := os.UserHomeDir()

@@ -84,6 +84,7 @@ When you answer in the terminal, the panel closes.
 Use the "Start at login" switch in Settings (key `start_at_login`).
 When it is on, nudged writes the LaunchAgent `~/Library/LaunchAgents/de.rokde.nudged.plist`. macOS starts the app at the next login.
 When it is off, nudged removes the plist.
+Each time the tray app starts, nudged makes the plist match `start_at_login`.
 
 ## Settings
 

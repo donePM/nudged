@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/hookclient"
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/hookclient"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // holdHook sends one hook and keeps the connection open. The channel gets the reply line, or "" when the read fails.

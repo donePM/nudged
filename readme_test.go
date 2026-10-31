@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/rokde/nudged/internal/config"
+	"github.com/donepm/nudged/internal/config"
 )
 
 func TestReadmeTexts(t *testing.T) {
 	fileContains(t, "README.md",
-		"brew install --cask rokde/tap/nudged", "xattr -dr com.apple.quarantine", "nudged install-hooks",
+		"brew install --cask donepm/tap/nudged", "xattr -dr com.apple.quarantine", "nudged install-hooks",
 		"nudged uninstall-hooks", "make build",
 		"⌥⌘P", "~/.config/nudged/config.toml", "Session done", "Session waits", "notify", "answer",
 		"Start at login", "MIT")

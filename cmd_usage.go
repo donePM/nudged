@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	usagelog "github.com/rokde/nudged/internal/usage"
+	usagelog "github.com/donepm/nudged/internal/usage"
 )
 
 func init() {

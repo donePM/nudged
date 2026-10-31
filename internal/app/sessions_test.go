@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/daemon"
-	"github.com/rokde/nudged/internal/proto"
-	"github.com/rokde/nudged/internal/usage"
+	"github.com/donepm/nudged/internal/daemon"
+	"github.com/donepm/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/usage"
 )
 
 func TestWaitingCountAndBadge(t *testing.T) {

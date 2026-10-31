@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // Run always returns 0 and writes nothing on error: exit 2 blocks Claude Code, other codes show an error.

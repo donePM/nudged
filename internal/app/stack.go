@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/rokde/nudged/internal/config"
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/config"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 // event returns the config of kind. It returns false for a kind with no config entry.

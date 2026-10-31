@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/rokde/nudged/internal/app"
+	"github.com/donepm/nudged/internal/app"
 )
 
 // startApp runs the tray app. Tests replace it.

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 func sockPath(t *testing.T) string {

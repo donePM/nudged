@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rokde/nudged/internal/proto"
+	"github.com/donepm/nudged/internal/proto"
 )
 
 var hookStatus = map[string]string{

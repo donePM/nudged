@@ -63,16 +63,21 @@ func panelView(s *panelShow) string {
 	return viewFor(s.Request.Kind)
 }
 
-// top returns the oldest shown request of list (oldest first) and the count of the other shown requests.
+// top returns the first shown request of list (oldest first) and the count of the other shown requests.
+// A request that waits for an answer comes before a notice, so a notice never hides a permission or a question.
 func top(list []proto.PendingRequest, cfg config.Config) (req proto.PendingRequest, others int, ok bool) {
 	for _, p := range list {
 		if !shown(p.Kind, cfg) {
 			continue
 		}
-		if ok {
-			others++
-		} else {
+		switch {
+		case !ok:
 			req, ok = p, true
+		case notice(req.Kind) && !notice(p.Kind):
+			req = p
+			others++
+		default:
+			others++
 		}
 	}
 	return req, others, ok

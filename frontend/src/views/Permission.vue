@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Events } from '@wailsio/runtime'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import '../card.css'
+import { useFit } from '../panel'
 
 interface Permission {
   tool: string; command: string; params: string; description: string
@@ -12,8 +14,10 @@ const id = ref('')
 const p = ref<Permission | null>(null)
 const others = ref(0)
 const now = ref(Date.now())
+const card = ref<HTMLElement | null>(null)
 let off = () => {}
 let timer = 0
+useFit(card)
 
 function clock(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000))
@@ -21,6 +25,10 @@ function clock(ms: number) {
 }
 const waited = computed(() => p.value ? clock(now.value - Date.parse(p.value.started)) : '')
 const left = computed(() => p.value ? clock(Date.parse(p.value.deadline) - now.value) : '')
+const where = computed(() => {
+  if (!p.value) return ''
+  return [`${p.value.term} ${p.value.tty}`.trim(), `session ${p.value.session.slice(0, 8)}`, p.value.model].filter(Boolean).join(' · ')
+})
 
 function answer(behavior: 'allow' | 'deny' | 'always', suggestion = 0) {
   if (id.value) Events.Emit('panel:answer', { id: id.value, behavior, suggestion })
@@ -51,51 +59,37 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main v-if="p">
-    <header>
-      <strong>{{ p.tool }}</strong>
-      <span v-if="others > 0">+{{ others }} waiting</span>
-      <span class="time">waits {{ waited }} · {{ left }} left</span>
-    </header>
-    <p v-if="p.description" class="desc" :title="p.description">{{ p.description }}</p>
-    <pre>{{ p.command || p.params }}</pre>
-    <dl>
-      <dt>Project</dt><dd :title="p.path">{{ p.project }} <small>{{ p.path }}</small></dd>
-      <dt>Terminal</dt><dd>{{ p.term }} {{ p.tty }}</dd>
-      <dt>Session</dt><dd :title="p.session">{{ p.session }}<template v-if="p.model"> · {{ p.model }}</template></dd>
-    </dl>
-    <div v-if="p.suggestions.length" class="always">
+  <main v-if="p" ref="card" class="card permission">
+    <span class="dot">!</span>
+    <span class="t" :title="p.path">{{ p.project || 'Claude' }} · Permission</span>
+    <span class="when" :title="`waits ${waited}, ${left} left`">
+      <span v-if="others > 0" class="more">+{{ others }}</span>{{ waited }} · {{ left }} left
+    </span>
+    <span class="s" :title="p.description"><b class="tool">{{ p.tool }}</b><template v-if="p.description"> · {{ p.description }}</template></span>
+    <pre class="wide">{{ p.command || p.params }}</pre>
+    <span class="wide meta" :title="p.session">{{ where }}</span>
+    <div v-if="p.suggestions.length" class="wide always">
       <button v-for="(s, i) in p.suggestions" :key="i" :title="s" @click="answer('always', i)">{{ s }}</button>
     </div>
-    <footer>
+    <div class="acts">
+      <span class="gap"></span>
       <button @click="answer('deny')">Deny <kbd>esc</kbd></button>
-      <button class="primary" @click="answer('allow')">Allow <kbd>⏎</kbd></button>
-    </footer>
+      <button class="pri" @click="answer('allow')">Allow <kbd>⏎</kbd></button>
+    </div>
   </main>
 </template>
 
 <style>
-:root { color-scheme: light dark; }
-body { margin: 0; overflow: hidden; font: 12px -apple-system, system-ui, sans-serif; background: #f6f6f6; color: #1d1d1f; }
-main { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; gap: 5px; }
-header { display: flex; gap: 8px; align-items: baseline; }
-header span { opacity: 0.7; }
-header .time { margin-left: auto; font-variant-numeric: tabular-nums; }
-.desc { flex-shrink: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-pre { flex: 1; min-height: 1.5em; margin: 0; overflow: auto; font-size: 11px; background: rgba(0, 0, 0, 0.05); padding: 6px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; }
-dl { flex-shrink: 0; display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; margin: 0; font-size: 11px; }
-dt { opacity: 0.6; }
-dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-small { opacity: 0.6; }
-.always { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; max-height: 41px; overflow-y: auto; }
-footer { display: flex; justify-content: flex-end; gap: 6px; flex-shrink: 0; }
-button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.2); background: #fff; color: inherit; }
-.always button { padding: 2px 8px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
-button.primary { background: #0a84ff; border-color: #0a84ff; color: #fff; }
-kbd { font: inherit; opacity: 0.6; }
-@media (prefers-color-scheme: dark) {
-  body { background: #2a2a2c; color: #f5f5f7; }
-  pre { background: rgba(255, 255, 255, 0.07); }
-  button { background: #3a3a3c; border-color: rgba(255, 255, 255, 0.2); }
+.tool { font-weight: 500; color: var(--ink); }
+pre {
+  margin: 10px 0 0; max-height: 7.5em; overflow: auto; padding: 8px 10px; border-radius: 9px; background: var(--code);
+  font: 11px/1.45 var(--mono); white-space: pre-wrap; word-break: break-all; -webkit-user-select: text; user-select: text;
 }
+.meta { margin-top: 8px; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.always { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 110px; overflow-y: auto; }
+.always button {
+  text-align: left; padding: 5px 10px; flex-shrink: 0; font-weight: 400; font-size: 11px; line-height: 1.35;
+  background: transparent; border: 1px solid var(--line); color: var(--muted); overflow-wrap: anywhere;
+}
+.always button:hover { color: var(--ink); background: var(--btn); }
 </style>

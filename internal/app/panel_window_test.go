@@ -292,16 +292,61 @@ func TestSaveSettingsNoReader(t *testing.T) {
 }
 
 func TestPanelOptions(t *testing.T) {
-	o := panelOptions("Generic")
+	o := panelOptions("Generic", nil)
 	if o.Mac.WindowClass != application.MacWindowClassPanel {
 		t.Fatalf("window class %v", o.Mac.WindowClass)
 	}
 	if p := o.Mac.PanelPreferences; !p.NonActivating || !p.FloatingPanel || !p.BecomesKeyOnlyIfNeeded {
 		t.Fatalf("panel preferences %+v", p)
 	}
-	if o.Name != panelName || o.URL != "/#/Generic" || o.Width != 380 || o.Height != 220 ||
+	if o.Name != panelName || o.URL != "/#/Generic" || o.Width != 340 || o.Height != panelHeight ||
 		!o.Frameless || !o.AlwaysOnTop || !o.DisableResize || !o.Hidden {
 		t.Fatalf("options %+v", o)
+	}
+	if o.Mac.Backdrop != application.MacBackdropTranslucent || o.Mac.CornerRadius != 14 || o.InitialPosition != application.WindowCentered {
+		t.Fatalf("look %+v, position %v", o.Mac, o.InitialPosition)
+	}
+	s := &application.Screen{ID: "main", WorkArea: application.Rect{X: 0, Y: 25, Width: 1512, Height: 920}}
+	o = panelOptions("Notice", s)
+	if o.InitialPosition != application.WindowXY || o.Screen != s || o.X != 1512-340-10 || o.Y != 10 {
+		t.Fatalf("top right: position %v screen %v x %d y %d", o.InitialPosition, o.Screen, o.X, o.Y)
+	}
+	if x := panelX(&application.Screen{WorkArea: application.Rect{Width: 200}}); x != 0 {
+		t.Fatalf("narrow screen x %d", x)
+	}
+}
+
+func TestPanelFit(t *testing.T) {
+	for h, want := range map[int]int{0: 40, 58: 58, 300: 300, 2000: 560} {
+		if got := panelFit(h); got != want {
+			t.Errorf("panelFit(%d) = %d, want %d", h, got, want)
+		}
+	}
+}
+
+func TestRunPanelHideTime(t *testing.T) {
+	cfg := config.Default()
+	cfg.Events.Done.HideSeconds = 20
+	cfg.Events.Waits.HideSeconds = 0
+	changes, shows := make(chan []proto.PendingRequest), make(chan *panelShow, 1)
+	go runPanel(changes, nil, cfg, func(string) {}, func(s *panelShow, _ int) { shows <- s })
+	t.Cleanup(func() { close(changes) })
+	done, waits := proto.PendingRequest{ID: "2", Kind: proto.Done}, proto.PendingRequest{ID: "3", Kind: proto.Waits}
+
+	start := time.Now()
+	changes <- []proto.PendingRequest{done}
+	s := <-shows
+	if s.HideMs != 20000 || s.HideAt == nil || s.HideAt.Before(start.Add(20*time.Second)) || s.HideAt.After(time.Now().Add(20*time.Second)) {
+		t.Fatalf("hide %d ms at %v", s.HideMs, s.HideAt)
+	}
+	at := *s.HideAt
+	changes <- []proto.PendingRequest{done, waits}
+	if s := <-shows; s.HideAt == nil || !s.HideAt.Equal(at) {
+		t.Fatalf("same notice, new deadline %v, want %v", s.HideAt, at)
+	}
+	changes <- []proto.PendingRequest{waits}
+	if s := <-shows; s.HideAt != nil || s.HideMs != 0 {
+		t.Fatalf("notice without hide time: %d ms at %v", s.HideMs, s.HideAt)
 	}
 }
 

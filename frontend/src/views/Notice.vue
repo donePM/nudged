@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { Events } from '@wailsio/runtime'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import '../card.css'
+import Countdown from '../components/Countdown.vue'
+import { useFit } from '../panel'
 
 interface Notice { title: string; project: string; session: string; duration: number; since: string }
+interface Show { request: { id: string; kind: string }; others: number; notice?: Notice; hide_at?: string; hide_ms?: number }
 
-const id = ref('')
-const kind = ref('')
-const n = ref<Notice | null>(null)
-const others = ref(0)
+const show = ref<Show | null>(null)
+const card = ref<HTMLElement | null>(null)
 let off = () => {}
+useFit(card)
 
+const n = computed(() => show.value?.notice ?? null)
+const kind = computed(() => show.value?.request.kind ?? '')
 const detail = computed(() => {
   if (!n.value) return ''
   if (kind.value === 'waits') {
@@ -20,44 +25,26 @@ const detail = computed(() => {
 })
 
 onMounted(() => {
-  off = Events.On('panel:show', (e) => {
-    const data = e.data as { request: { id: string; kind: string }; others: number; notice?: Notice }
-    id.value = data.request.id
-    kind.value = data.request.kind
-    n.value = data.notice ?? null
-    others.value = data.others
-  })
+  off = Events.On('panel:show', (e) => { show.value = e.data as Show })
   Events.Emit('panel:ready', null)
 })
 onUnmounted(() => off())
 
 function jump() {
-  if (id.value) Events.Emit('panel:focus', { id: id.value })
+  if (show.value) Events.Emit('panel:focus', { id: show.value.request.id })
 }
 </script>
 
 <template>
-  <main v-if="n" @click="jump">
-    <header>
-      <strong>{{ n.title }}</strong>
-      <span v-if="others > 0">+{{ others }} waiting</span>
-    </header>
-    <p class="project">{{ n.project }}</p>
-    <p :title="n.session">Session {{ n.session.slice(0, 8) }}</p>
-    <p class="detail">{{ detail }}</p>
+  <main v-if="show && n" ref="card" class="card click" :class="kind" title="Click to open the terminal" @click="jump">
+    <span class="dot">{{ kind === 'done' ? '✓' : '…' }}</span>
+    <span class="t">{{ n.project || 'Claude' }} · {{ kind === 'done' ? 'done' : 'waits' }}</span>
+    <span class="when"><span v-if="show.others > 0" class="more">+{{ show.others }}</span>{{ detail }}</span>
+    <span class="s" :class="{ short: show.hide_at }" :title="n.session">Session {{ n.session.slice(0, 8) }} · Click to open the terminal</span>
+    <Countdown v-if="show.hide_at && show.hide_ms" :at="show.hide_at" :total="show.hide_ms" />
   </main>
 </template>
 
 <style>
-:root { color-scheme: light dark; }
-body { margin: 0; overflow: hidden; font: 13px -apple-system, system-ui, sans-serif; background: #f6f6f6; color: #1d1d1f; }
-main { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; gap: 6px; cursor: pointer; }
-header { display: flex; justify-content: space-between; }
-header span { opacity: 0.7; }
-p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project { font-size: 15px; font-weight: 600; }
-.detail { opacity: 0.7; font-variant-numeric: tabular-nums; }
-@media (prefers-color-scheme: dark) {
-  body { background: #2a2a2c; color: #f5f5f7; }
-}
+.s.short { grid-column: 2; }
 </style>

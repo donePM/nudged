@@ -1,21 +1,26 @@
 <script setup lang="ts">
 import { Events } from '@wailsio/runtime'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import '../card.css'
+import { base, useFit } from '../panel'
 
 interface Option { label: string; description?: string }
 interface Question { question: string; header: string; options?: Option[]; multiSelect?: boolean }
-interface Request { id: string; session_id: string; payload?: { tool_input?: { questions?: Question[] } } }
+interface Request { id: string; session_id: string; payload?: { cwd?: string; tool_input?: { questions?: Question[] } } }
 interface Draft { picked: string[]; text: string; skipped: boolean }
 
 const request = ref<Request | null>(null)
 const others = ref(0)
 const tab = ref(0)
 const drafts = ref<Draft[]>([])
+const card = ref<HTMLElement | null>(null)
 let off = () => {}
+useFit(card)
 
 const questions = computed(() => request.value?.payload?.tool_input?.questions ?? [])
 const q = computed(() => questions.value[tab.value])
 const d = computed(() => drafts.value[tab.value])
+const last = computed(() => tab.value >= questions.value.length - 1)
 
 onMounted(() => {
   off = Events.On('panel:show', (e) => {
@@ -55,8 +60,15 @@ function send() {
 
 function next(skip: boolean) {
   d.value.skipped = skip
-  if (tab.value < questions.value.length - 1) tab.value++
+  if (!last.value) tab.value++
   else send()
+}
+
+// grow fits the text field to its text, up to its max height.
+function grow(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + 2}px`
 }
 
 function terminal() {
@@ -65,55 +77,51 @@ function terminal() {
 </script>
 
 <template>
-  <main v-if="request && q && d">
-    <header>
-      <nav>
-        <button v-for="(item, i) in questions" :key="i" :class="{ active: i === tab }" @click="tab = i">{{ item.header }}</button>
-      </nav>
-      <span v-if="others > 0">+{{ others }} waiting</span>
-    </header>
-    <section>
-      <p>{{ q.question }}</p>
-      <label v-for="o in q.options ?? []" :key="o.label">
+  <main v-if="request && q && d" ref="card" class="card question">
+    <span class="dot">?</span>
+    <span class="t">{{ base(request.payload?.cwd) || 'Claude' }} · {{ q.header || 'Question' }}</span>
+    <span class="when">
+      <span v-if="others > 0" class="more">+{{ others }}</span>
+      <template v-if="questions.length > 1">{{ tab + 1 }} / {{ questions.length }}</template>
+    </span>
+    <p class="wide ask">{{ q.question }}</p>
+    <nav v-if="questions.length > 1" class="wide tabs">
+      <button v-for="(item, i) in questions" :key="i" :class="{ pri: i === tab }" @click="tab = i">{{ item.header }}</button>
+    </nav>
+    <div class="wide options">
+      <label v-for="o in q.options ?? []" :key="o.label" :class="{ on: d.picked.includes(o.label) }">
         <input
           :type="q.multiSelect ? 'checkbox' : 'radio'"
           :name="'q' + tab"
           :checked="d.picked.includes(o.label)"
           @change="pick(o.label, ($event.target as HTMLInputElement).checked)"
         />
-        <span><strong>{{ o.label }}</strong> <small v-if="o.description">{{ o.description }}</small></span>
+        <span><b>{{ o.label }}</b><small v-if="o.description">{{ o.description }}</small></span>
       </label>
-      <input v-model="d.text" class="text" type="text" placeholder="Other answer" />
-    </section>
-    <footer>
+      <textarea v-model="d.text" class="text" rows="2" placeholder="Other answer (⌘⏎ sends)" @input="grow" @keydown.meta.enter.prevent="next(false)"></textarea>
+    </div>
+    <div class="acts">
       <button @click="terminal">Open in terminal</button>
-      <span></span>
+      <span class="gap"></span>
       <button @click="next(true)">Skip</button>
-      <button class="primary" @click="next(false)">Next</button>
-    </footer>
+      <button class="pri" @click="next(false)">{{ last ? 'Send' : 'Next' }}</button>
+    </div>
   </main>
 </template>
 
 <style>
-:root { color-scheme: light dark; }
-body { margin: 0; font: 13px -apple-system, system-ui, sans-serif; background: #f6f6f6; color: #1d1d1f; }
-main { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; gap: 8px; }
-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-header span { opacity: 0.7; white-space: nowrap; }
-nav { display: flex; gap: 4px; overflow-x: auto; }
-nav button { padding: 2px 8px; }
-nav button.active { background: #0a84ff; border-color: #0a84ff; color: #fff; }
-section { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
-section p { margin: 0 0 2px; font-weight: 600; }
-label { display: flex; gap: 6px; align-items: flex-start; }
-small { opacity: 0.7; }
-input.text { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.2); background: #fff; color: inherit; }
-footer { display: flex; gap: 8px; }
-footer span { flex: 1; }
-button { font: inherit; padding: 4px 14px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.2); background: #fff; color: inherit; }
-button.primary { background: #0a84ff; border-color: #0a84ff; color: #fff; }
-@media (prefers-color-scheme: dark) {
-  body { background: #2a2a2c; color: #f5f5f7; }
-  button, input.text { background: #3a3a3c; border-color: rgba(255, 255, 255, 0.2); }
+.ask { margin: 4px 0 0; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+.tabs { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; }
+.tabs button { padding: 2px 8px; font-size: 11px; flex-shrink: 0; }
+.options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 340px; overflow-y: auto; padding: 2px; }
+.options label { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border-radius: 9px; background: var(--btn); cursor: pointer; }
+.options label.on { outline: 1.5px solid var(--accent); outline-offset: -1.5px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.options input[type='radio'], .options input[type='checkbox'] { margin: 2px 0 0; accent-color: var(--accent); }
+.options b { font-weight: 500; }
+.options small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+textarea.text {
+  box-sizing: border-box; width: 100%; min-height: 52px; max-height: 120px; margin-top: 4px; padding: 8px 12px;
+  font: inherit; line-height: 1.4; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: inherit;
+  resize: none; overflow-y: auto; -webkit-user-select: text; user-select: text;
 }
 </style>

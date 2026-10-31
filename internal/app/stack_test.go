@@ -32,6 +32,13 @@ func TestTop(t *testing.T) {
 	if _, _, ok := top(nil, config.Default()); ok {
 		t.Fatal("empty list: ok")
 	}
+	notices := []proto.PendingRequest{{ID: "5", Kind: proto.Done}, {ID: "6", Kind: proto.Waits}, {ID: "7", Kind: proto.Permission}, {ID: "8", Kind: proto.Question}}
+	if req, others, ok := top(notices, config.Default()); !ok || req.ID != "7" || others != 3 {
+		t.Fatalf("answer before notice: %+v %d %v", req, others, ok)
+	}
+	if req, others, ok := top(notices[:2], config.Default()); !ok || req.ID != "5" || others != 1 {
+		t.Fatalf("notices only: %+v %d %v", req, others, ok)
+	}
 }
 
 func TestViewFor(t *testing.T) {

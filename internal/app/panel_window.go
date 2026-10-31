@@ -27,6 +27,14 @@ type panelShow struct {
 	Notice *noticeData `json:"notice,omitempty"`
 	// Generic is set when the Generic view shows Request.
 	Generic *genericData `json:"generic,omitempty"`
+	// HideAt is when the panel dismisses the notice by itself. HideMs is the full hide time. Both are zero when the notice stays.
+	HideAt *time.Time `json:"hide_at,omitempty"`
+	HideMs int64      `json:"hide_ms,omitempty"`
+}
+
+// panelSize is the height of the card in the panel page.
+type panelSize struct {
+	Height int `json:"height"`
 }
 
 type panelAnswer struct {
@@ -48,30 +56,53 @@ var hideUnit = time.Second
 func init() {
 	application.RegisterEvent[panelAnswer]("panel:answer")
 	application.RegisterEvent[panelFocus]("panel:focus")
+	application.RegisterEvent[panelSize]("panel:size")
 }
 
-const panelWidth, panelHeight, panelMargin = 380, 220, 12
+// The panel is a small card in the top right corner of the work area, like a macOS notification.
+// The page reports the card height, and the panel grows or shrinks to it within the limits.
+const panelWidth, panelHeight, panelMargin = 340, 72, 10
+const panelMinHeight, panelMaxHeight = 40, 560
 
-// panelOptions returns the options of the panel window. The non-activating NSPanel does not take key focus from the terminal.
-func panelOptions(view string) application.WebviewWindowOptions {
-	return application.WebviewWindowOptions{
+// panelOptions returns the options of the panel window on screen s (nil is the main screen).
+// The non-activating NSPanel does not take key focus from the terminal.
+func panelOptions(view string, s *application.Screen) application.WebviewWindowOptions {
+	o := application.WebviewWindowOptions{
 		Name: panelName, URL: "/#/" + view, Width: panelWidth, Height: panelHeight,
 		Frameless: true, AlwaysOnTop: true, DisableResize: true, Hidden: true,
+		BackgroundType: application.BackgroundTypeTranslucent,
 		Mac: application.MacWindow{
+			Backdrop: application.MacBackdropTranslucent, CornerRadius: 14,
 			WindowClass: application.MacWindowClassPanel,
 			PanelPreferences: application.MacPanelPreferences{
 				NonActivating: true, FloatingPanel: true, BecomesKeyOnlyIfNeeded: true,
 			},
 		},
 	}
+	if s != nil {
+		o.InitialPosition, o.Screen = application.WindowXY, s
+		o.X, o.Y = panelX(s), panelMargin
+	}
+	return o
 }
+
+// panelX is the x of the panel in the work area of s.
+func panelX(s *application.Screen) int { return max(0, s.WorkArea.Width-panelWidth-panelMargin) }
+
+// panelFit clamps the card height h to the panel limits.
+func panelFit(h int) int { return min(max(h, panelMinHeight), panelMaxHeight) }
 
 // startPanel creates the hidden panel window and shows the top request of each snapshot. Call it after the app started.
 func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	view := viewFor("")
-	w := app.Window.NewWithOptions(panelOptions(view))
-	if s := app.Screen.GetPrimary(); s != nil {
-		w.SetPosition(s.WorkArea.X+s.WorkArea.Width-panelWidth-panelMargin, s.WorkArea.Y+panelMargin)
+	w := app.Window.NewWithOptions(panelOptions(view, app.Screen.GetPrimary()))
+	height := panelHeight // only the main thread uses height
+	// place sizes the panel and puts it in the top right corner. A resize keeps the bottom left corner, so place runs after each one.
+	place := func() {
+		w.SetSize(panelWidth, height)
+		if s := app.Screen.GetPrimary(); s != nil {
+			w.SetRelativePosition(panelX(s), panelMargin)
+		}
 	}
 	// The notice can already be gone, for example after the next hook of its session.
 	dismiss := func(id string) { srv.Dismiss(id) }
@@ -80,6 +111,18 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		application.InvokeSync(func() {
 			if cur != nil && e.Sender == panelName {
 				w.EmitEvent("panel:show", *cur)
+			}
+		})
+	})
+	app.Event.On("panel:size", func(e *application.CustomEvent) {
+		z, ok := e.Data.(panelSize)
+		if e.Sender != panelName || !ok {
+			return
+		}
+		application.InvokeSync(func() {
+			if h := panelFit(z.Height); h != height {
+				height = h
+				place()
 			}
 		})
 	})
@@ -122,6 +165,7 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 			}
 			w.EmitEvent("panel:show", *show)
 			w.Show()
+			place()
 		})
 	})
 }
@@ -157,11 +201,13 @@ func focusRequest(cur *panelShow, id string, dismiss func(string)) {
 // runPanel keeps the last snapshot and the current config until changes closes.
 // For each snapshot and each config, it calls show with the top request (nil hides the panel) and the current timeout.
 // When a notice with a HideSeconds above 0 becomes the top request, it calls dismiss with the notice id after that time, once for each id.
+// The show of such a notice has the hide time and the hide deadline.
 // A new config stops the running timers, and the top notice gets a new timer with the new time.
 func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, dismiss func(string), show func(*panelShow, int)) {
 	var list []proto.PendingRequest
 	var seen map[string]bool
 	timed := map[string]*time.Timer{}
+	hideAt := map[string]time.Time{}
 	for {
 		select {
 		case l, ok := <-changes:
@@ -182,6 +228,7 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 			for id, t := range timed {
 				t.Stop()
 				delete(timed, id)
+				delete(hideAt, id)
 			}
 		}
 		var s *panelShow
@@ -191,13 +238,20 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 				g := genericPanel(req)
 				s.Generic = &g
 			}
-			if ev, _ := event(req.Kind, cfg); notice(req.Kind) && timed[req.ID] == nil && ev.HideSeconds > 0 {
-				timed[req.ID] = time.AfterFunc(time.Duration(ev.HideSeconds)*hideUnit, func() { dismiss(req.ID) })
+			ev, _ := event(req.Kind, cfg)
+			d := time.Duration(ev.HideSeconds) * hideUnit
+			if notice(req.Kind) && timed[req.ID] == nil && d > 0 {
+				timed[req.ID] = time.AfterFunc(d, func() { dismiss(req.ID) })
+				hideAt[req.ID] = time.Now().Add(d)
+			}
+			if at, ok := hideAt[req.ID]; ok {
+				s.HideAt, s.HideMs = &at, d.Milliseconds()
 			}
 		}
 		for id := range timed {
 			if !slices.ContainsFunc(list, func(p proto.PendingRequest) bool { return p.ID == id }) {
 				delete(timed, id)
+				delete(hideAt, id)
 			}
 		}
 		show(s, cfg.TimeoutMinutes)

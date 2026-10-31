@@ -8,17 +8,20 @@ refreshes it after each merge.
 - Base: `origin/main`, or the local target branch when it already contains the base
   (local merges not pushed yet). Every job's worktree starts there.
 - Merge target: `main` (local, not pushed)
-- Language / stack: none yet (repo holds only an empty README.md)
-- Install: `none yet`. Run it once in each new worktree.
-- Test command: `none yet`
-- Lint / format: `none yet`
+- Language / stack: Go 1.27 (module `github.com/rokde/nudged`, stdlib so far); later Wails v3 + Vue 3/TS/Vite frontend (S12)
+- Install: `go mod download`. Run it once in each new worktree.
+- Test command: `go vet ./... && make test`
+- Lint / format: `gofmt -l . && go vet ./...`
 
 ## Sources
 - GitHub issues: rokde/nudged
 - Jira: none
 
 ## Conventions
-none yet (one commit: "initial release"). Product requirements live in the
+- Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`).
+- One binary; each subcommand lives in `cmd_<name>.go` and calls `register` in its own `init()`. Shared wire types in `internal/proto`; libraries in `internal/<pkg>`.
+- CI: `.github/workflows/ci.yml` on `macos-latest` runs `go vet` and `go test`.
+- Product requirements live in the
 "nudged – PRD" doc: https://claude.ai/artifact/4FSUSazTkkEPLHN2uLc4HZ
 
 ## Factory rules

@@ -1,8 +1,11 @@
 package app
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/donepm/nudged/internal/config"
@@ -70,8 +73,7 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	}
 	// The notice can already be gone, for example after the next hook of its session.
 	dismiss := func(id string) { srv.Dismiss(id) }
-	var cur *panelShow // only the main thread uses cur, held and view
-	var held []proto.PendingRequest
+	var cur *panelShow // only the main thread uses cur and view
 	app.Event.On("panel:ready", func(e *application.CustomEvent) {
 		application.InvokeSync(func() {
 			if cur != nil && e.Sender == panelName {
@@ -84,22 +86,7 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		if e.Sender != panelName || !ok {
 			return
 		}
-		var req proto.PendingRequest
-		application.InvokeSync(func() {
-			for _, p := range held {
-				if p.ID == a.ID {
-					req = p
-				}
-			}
-		})
-		out, err := decision(a.Behavior)
-		if req.Kind == proto.Permission {
-			out, err = permissionDecision(a.Behavior, a.Suggestion, req.Payload)
-		}
-		if err == nil {
-			err = srv.Answer(a.ID, out)
-		}
-		if err != nil {
+		if err := answerPanel(srv.Pending(), a, srv.Answer); err != nil {
 			fmt.Fprintln(logw, "nudged: panel answer:", err)
 		}
 	})
@@ -112,7 +99,7 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 		application.InvokeSync(func() { c = cur })
 		focusRequest(c, f.ID, dismiss)
 	})
-	go runPanel(srv.Changes(), panelConfigs, cfg, dismiss, func(list []proto.PendingRequest, show *panelShow, timeoutMinutes int) {
+	go runPanel(srv.Changes(), panelConfigs, cfg, dismiss, func(show *panelShow, timeoutMinutes int) {
 		if show != nil && show.Request.Kind == proto.Permission {
 			p := permissionPanel(show.Request, srv.Registry.List(), timeoutMinutes)
 			show.Permission = &p
@@ -122,7 +109,6 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 			show.Notice = &n
 		}
 		application.InvokeSync(func() {
-			held = list
 			cur = show
 			if show == nil {
 				w.Hide()
@@ -138,6 +124,24 @@ func startPanel(app *application.App, srv *daemon.Server, cfg config.Config) {
 	})
 }
 
+// answerPanel builds the reply from the pending request a.ID, never from the webview. It calls answer only for a valid reply.
+func answerPanel(pending []proto.PendingRequest, a panelAnswer, answer func(string, json.RawMessage) error) error {
+	for _, p := range pending {
+		if p.ID != a.ID {
+			continue
+		}
+		out, err := decision(a.Behavior)
+		if p.Kind == proto.Permission {
+			out, err = permissionDecision(a.Behavior, a.Suggestion, p.Payload)
+		}
+		if err != nil {
+			return err
+		}
+		return answer(a.ID, out)
+	}
+	return errors.New("no pending request " + strconv.Quote(a.ID))
+}
+
 // focusRequest brings the terminal of the current request cur to the front, if focusTarget allows it. Then it dismisses a notice.
 func focusRequest(cur *panelShow, id string, dismiss func(string)) {
 	if tty, term, ok := focusTarget(cur, id); ok {
@@ -149,9 +153,9 @@ func focusRequest(cur *panelShow, id string, dismiss func(string)) {
 }
 
 // runPanel keeps the last snapshot and the current config until changes closes.
-// For each snapshot and each config, it calls show with the snapshot, the top request (nil hides the panel) and the current timeout.
+// For each snapshot and each config, it calls show with the top request (nil hides the panel) and the current timeout.
 // When a notice with a HideSeconds above 0 becomes the top request, it calls dismiss with the notice id after that time, once for each id.
-func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, dismiss func(string), show func([]proto.PendingRequest, *panelShow, int)) {
+func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Config, cfg config.Config, dismiss func(string), show func(*panelShow, int)) {
 	var list []proto.PendingRequest
 	var seen map[string]bool
 	timed := map[string]bool{}
@@ -186,6 +190,6 @@ func runPanel(changes <-chan []proto.PendingRequest, configs <-chan config.Confi
 				delete(timed, id)
 			}
 		}
-		show(list, s, cfg.TimeoutMinutes)
+		show(s, cfg.TimeoutMinutes)
 	}
 }

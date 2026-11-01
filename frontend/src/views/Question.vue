@@ -78,13 +78,15 @@ function terminal() {
 
 <template>
   <main v-if="request && q && d" ref="card" class="card question">
-    <span class="dot">?</span>
-    <span class="t">{{ base(request.payload?.cwd) || 'Claude' }} · {{ q.header || 'Question' }}</span>
-    <span class="when">
-      <span v-if="others > 0" class="more">+{{ others }}</span>
-      <template v-if="questions.length > 1">{{ tab + 1 }} / {{ questions.length }}</template>
-    </span>
-    <p class="wide ask">{{ q.question }}</p>
+    <div class="top">
+      <span class="dot">?</span>
+      <span class="t">{{ base(request.payload?.cwd) || 'Claude' }} · {{ q.header || 'Question' }}</span>
+      <span class="when">
+        <span v-if="others > 0" class="more">+{{ others }}</span>
+        <template v-if="questions.length > 1">{{ tab + 1 }} / {{ questions.length }}</template>
+      </span>
+      <p class="wide ask">{{ q.question }}</p>
+    </div>
     <nav v-if="questions.length > 1" class="wide tabs">
       <button v-for="(item, i) in questions" :key="i" :class="{ pri: i === tab }" @click="tab = i">{{ item.header }}</button>
     </nav>
@@ -110,10 +112,15 @@ function terminal() {
 </template>
 
 <style>
-.ask { margin: 4px 0 0; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+/* The card stops at the panel max height (panelMaxHeight in panel_window.go). The options shrink and scroll, so the buttons stay in view. */
+.card.question { display: flex; flex-direction: column; gap: 0; max-height: 560px; }
+.question .top { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; flex-shrink: 0; }
+.question > .tabs, .question > .options, .question > .acts { margin-left: 36px; }
+.question > .tabs, .question > .acts { flex-shrink: 0; }
+.ask { max-height: 160px; overflow-y: auto; margin: 4px 0 0; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
 .tabs { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; }
 .tabs button { padding: 2px 8px; font-size: 11px; flex-shrink: 0; }
-.options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 340px; overflow-y: auto; padding: 2px; }
+.options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; min-height: 0; flex: 0 1 auto; overflow-y: auto; padding: 2px; }
 .options label { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border-radius: 9px; background: var(--btn); cursor: pointer; }
 .options label.on { outline: 1.5px solid var(--accent); outline-offset: -1.5px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .options input[type='radio'], .options input[type='checkbox'] { margin: 2px 0 0; accent-color: var(--accent); }

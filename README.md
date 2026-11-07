@@ -1,5 +1,26 @@
 # nudged
 
+**No Claude session waits unnoticed.**
+
+<p align="center">
+  <a href="assets/nudged-demo.mp4">
+    <img src="assets/nudged-demo.gif" alt="nudged demo: six Claude Code sessions, one waits; nudged shows the permission request in a panel, you click Allow, answer a question, and see every session in the menu bar" width="800">
+  </a>
+  <br>
+  <sub>▶ <a href="assets/nudged-demo.mp4">Watch with sound (20 s)</a></sub>
+</p>
+
+<p align="center">
+  <code>brew install --cask donepm/tap/nudged</code>
+</p>
+
+Six Claude sessions running, and one sat on "Do you want to proceed?" for 14 minutes while you watched another.
+nudged sits in the menu bar and taps you when a session needs you:
+
+- **Allow or deny** permission requests right in the panel (⏎ / esc).
+- **Answer questions**: pick an option, hit Send.
+- **Every session at a glance**: who waits, who works, context and today's tokens.
+
 nudged is a macOS tray app for developers who run many Claude Code sessions in parallel.
 It tells you when a session waits for input.
 You can answer permission requests and questions in a small panel, so no session waits without notice.

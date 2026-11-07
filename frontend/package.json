@@ -6,7 +6,7 @@
     "build": "vue-tsc --noEmit && vite build"
   },
   "dependencies": {
-    "@wailsio/runtime": "^3.0.0",
+    "@wailsio/runtime": "^3.1.0",
     "vue": "^3.5.44"
   },
   "devDependencies": {

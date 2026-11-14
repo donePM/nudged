@@ -6,13 +6,13 @@
     "build": "vue-tsc --noEmit && vite build"
   },
   "dependencies": {
-    "@wailsio/runtime": "^3.0.0",
-    "vue": "^3.5.44"
+    "@wailsio/runtime": "^3.1.0",
+    "vue": "^3.5.45"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.10",
     "typescript": "^6.0.3",
-    "vite": "^8.3.5",
+    "vite": "^8.3.8",
     "vue-tsc": "^3.3.14"
   }
 }
